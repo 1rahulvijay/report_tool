@@ -381,6 +381,8 @@ def _sync_csv_response(db, sql, params, dataset_name):
     """Small CSV: load DataFrame into memory and return."""
     df = db.execute_query_df(sql, params)
     stream = io.StringIO()
+    # Add UTF-8 BOM so Excel automatically recognizes the encoding
+    stream.write("\ufeff")
     df.to_csv(stream, index=False)
     response = StreamingResponse(iter([stream.getvalue()]), media_type="text/csv")
     response.headers["Content-Disposition"] = (
@@ -396,6 +398,8 @@ def _streaming_csv_response(db, sql, params, dataset_name):
     """
 
     def csv_generator():
+        # Yield UTF-8 BOM for Excel compatibility
+        yield "\ufeff"
         first_chunk = True
         for chunk in db.execute_query_cursor(sql, params, chunk_size=10000):
             if not chunk:
@@ -442,24 +446,49 @@ def _sync_excel_response(db, sql, params, dataset_name):
     )
     worksheet = workbook.add_worksheet("Aurora Export")
 
+    # Display enhancements
+    worksheet.freeze_panes(1, 0)
+    worksheet.set_default_row(15)
+    worksheet.set_tab_color("#1e3a8a")
+
+    row_count = len(df)
+    col_names = df.columns.tolist()
+
+    if row_count > 0:
+        worksheet.autofilter(0, 0, row_count, len(col_names) - 1)
+
+    # Styles
     header_format = workbook.add_format(
         {
             "bold": True,
             "font_color": "#ffffff",
-            "bg_color": "#0f172a",
+            "bg_color": "#1e3a8a",
             "border": 1,
-            "align": "center",
+            "border_color": "#1e3a8a",
+            "align": "left",
             "valign": "vcenter",
         }
     )
 
-    col_names = df.columns.tolist()
+    cell_format = workbook.add_format({"border": 1, "border_color": "#e2e8f0"})
+    num_format = workbook.add_format(
+        {"num_format": "#,##0.00", "border": 1, "border_color": "#e2e8f0"}
+    )
+    int_format = workbook.add_format(
+        {"num_format": "#,##0", "border": 1, "border_color": "#e2e8f0"}
+    )
+
     for col_num, value in enumerate(col_names):
         worksheet.write(0, col_num, value, header_format)
 
     for row_idx, row in enumerate(df.itertuples(index=False), start=1):
         for col_idx, value in enumerate(row):
-            worksheet.write(row_idx, col_idx, value)
+            if isinstance(value, float):
+                worksheet.write_number(row_idx, col_idx, value, num_format)
+            elif isinstance(value, int):
+                worksheet.write_number(row_idx, col_idx, value, int_format)
+            else:
+                worksheet.write(row_idx, col_idx, value, cell_format)
 
     worksheet.set_column(0, len(col_names) - 1, 22)
     workbook.close()

@@ -141,15 +141,41 @@ class ExportService:
                 )
                 worksheet = workbook.add_worksheet("Aurora Export")
 
-                # Premium header format
+                # Display enhancements
+                worksheet.freeze_panes(1, 0)
+                worksheet.set_default_row(15)
+                worksheet.set_tab_color("#1e3a8a")
+
+                if job.estimated_rows > 0:
+                    worksheet.autofilter(0, 0, job.estimated_rows, len(col_names) - 1)
+
+                # Styles
                 header_format = workbook.add_format(
                     {
                         "bold": True,
                         "font_color": "#ffffff",
-                        "bg_color": "#0f172a",
+                        "bg_color": "#1e3a8a",
                         "border": 1,
-                        "align": "center",
+                        "border_color": "#1e3a8a",
+                        "align": "left",
                         "valign": "vcenter",
+                    }
+                )
+
+                cell_format = workbook.add_format(
+                    {"border": 1, "border_color": "#e2e8f0"}
+                )
+                num_format = workbook.add_format(
+                    {"num_format": "#,##0.00", "border": 1, "border_color": "#e2e8f0"}
+                )
+                int_format = workbook.add_format(
+                    {"num_format": "#,##0", "border": 1, "border_color": "#e2e8f0"}
+                )
+                date_format = workbook.add_format(
+                    {
+                        "num_format": "yyyy-mm-dd hh:mm:ss",
+                        "border": 1,
+                        "border_color": "#e2e8f0",
                     }
                 )
 
@@ -171,21 +197,34 @@ class ExportService:
                         for col_idx, value in enumerate(row):
                             # Handle special types
                             if value is None:
-                                worksheet.write_blank(row_idx, col_idx, None)
+                                worksheet.write_blank(row_idx, col_idx, "", cell_format)
                             elif hasattr(value, "isoformat"):
-                                worksheet.write_string(
-                                    row_idx, col_idx, value.isoformat()
+                                worksheet.write_datetime(
+                                    row_idx, col_idx, value, date_format
                                 )
-                            elif isinstance(value, (int, float)):
+                            elif isinstance(value, bool):  # Put bool check before int
+                                worksheet.write_boolean(
+                                    row_idx, col_idx, value, cell_format
+                                )
+                            elif isinstance(value, int):
+                                worksheet.write_number(
+                                    row_idx, col_idx, value, int_format
+                                )
+                            elif isinstance(value, float):
                                 import math
 
                                 if math.isnan(value) or math.isinf(value):
-                                    worksheet.write_blank(row_idx, col_idx, None)
+                                    worksheet.write_blank(
+                                        row_idx, col_idx, "", cell_format
+                                    )
                                 else:
-                                    worksheet.write_number(row_idx, col_idx, value)
+                                    worksheet.write_number(
+                                        row_idx, col_idx, value, num_format
+                                    )
                             else:
-                                worksheet.write_string(row_idx, col_idx, str(value))
-                            col_idx += 1
+                                worksheet.write_string(
+                                    row_idx, col_idx, str(value), cell_format
+                                )
                         row_idx += 1
 
                     total_written += len(rows)

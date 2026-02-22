@@ -2,6 +2,8 @@ import reflex as rx
 import httpx
 from typing import List, Dict, Any
 import os
+import asyncio
+import time
 from .state_modules.aggregation import AggregationState
 
 # The base URL where our FastAPI backend is running
@@ -16,10 +18,21 @@ class AppState(AggregationState):
     Inherits all capabilities (Column, Filter, Join, Aggregation) for a unified UI api.
     """
 
-    async def execute_query(self):
+    _last_query_time: float = 0.0
+
+    async def execute_query(self, force: bool = False):
         """Send the current filter/sort state to the backend to get data."""
         if not self.selected_dataset:
             return
+
+        if not force:
+            # Debounce logic: wait 300ms. If a newer request arrives, abort this one.
+            current_time = time.time()
+            self._last_query_time = current_time
+            await asyncio.sleep(0.3)
+
+            if self._last_query_time != current_time:
+                return
 
         if not self.is_fetching_more:
             self.is_loading = True

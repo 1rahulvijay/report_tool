@@ -19,8 +19,8 @@ class Settings(BaseSettings):
     ORACLE_USER: str
     ORACLE_PASSWORD: str
     ORACLE_DSN: str
-    ORACLE_MIN_POOL: int = 5
-    ORACLE_MAX_POOL: int = 20
+    ORACLE_MIN_POOL: int = 50
+    ORACLE_MAX_POOL: int = 150
 
     # Security & Governance
     ALLOWED_ORIGINS: list[str] = ["https://mycompany.com", "https://reports.internal"]

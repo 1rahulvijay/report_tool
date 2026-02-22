@@ -48,9 +48,19 @@ class PartitionInfo(BaseModel):
     Returned alongside column metadata so the frontend can build a vintage selector.
     """
 
-    column: str = Field(..., description="Name of the partition column")
-    load_type: str = Field(
-        ..., description="Partition frequency: Daily, Monthly, Snapshot"
+    load_type_column: Optional[str] = Field(
+        None,
+        description="Optional column indicating frequency (e.g. 'Daily', 'Monthly')",
+    )
+    load_id_column: Optional[str] = Field(
+        None, description="The actual database column used for filtering the partition"
+    )
+    date_column: Optional[str] = Field(
+        None, description="The user-friendly date column shown in the UI"
+    )
+    supported_types: List[str] = Field(
+        default_factory=list,
+        description="Array of supported frequencies (e.g. ['Monthly', 'Daily'])",
     )
     available_values: List[Any] = Field(
         default_factory=list,

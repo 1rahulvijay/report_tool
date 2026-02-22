@@ -1,0 +1,114 @@
+{
+    "employee_roster2": {
+        "load_type_column": "load_type",
+        "load_id_column": "hire_date",
+        "date_column": "hire_date",
+        "supported_types": [
+            "Monthly",
+            "Daily"
+        ]
+    },
+    "employee_roster": {
+        "load_type_column": null,
+        "load_id_column": "hire_date",
+        "date_column": "hire_date",
+        "supported_types": []
+    },
+    "global_sales_orders": {
+        "load_type_column": null,
+        "load_id_column": "order_date",
+        "date_column": "order_date",
+        "supported_types": [
+            "Monthly"
+        ]
+    },
+    "large_table_1m_1": {
+        "load_type_column": null,
+        "load_id_column": "load_date",
+        "date_column": "load_date",
+        "supported_types": [
+            "Daily"
+        ]
+    },
+    "large_table_1m_2": {
+        "load_type_column": null,
+        "load_id_column": "load_date",
+        "date_column": "load_date",
+        "supported_types": []
+    },
+    "large_table_1m_3": {
+        "load_type_column": "load_type",
+        "load_id_column": null,
+        "date_column": "load_date",
+        "supported_types": [
+            "Monthly",
+            "Daily"
+        ]
+    },
+    "large_table_1m_4": {
+        "load_type_column": "load_type",
+        "load_id_column": "load_date",
+        "date_column": null,
+        "supported_types": [
+            "Monthly",
+            "Daily"
+        ]
+    },
+    "large_table_1m_5": {
+        "load_type_column": null,
+        "load_id_column": "load_date",
+        "date_column": null,
+        "supported_types": []
+    },
+    "orddcm_conformance_vld_msgs": {
+        "load_type_column": null,
+        "load_id_column": "load_id",
+        "date_column": "load_id",
+        "supported_types": [
+            "Monthly",
+            "Daily"
+        ]
+    },
+    "orddcm_constraint_names": {
+        "load_type_column": null,
+        "load_id_column": "load_id",
+        "date_column": "load_id",
+        "supported_types": [
+            "Monthly",
+            "Daily"
+        ]
+    },
+    "orddcm_dbrelease_docs": {
+        "load_type_column": null,
+        "load_id_column": "load_id",
+        "date_column": "load_id",
+        "supported_types": [
+            "Monthly",
+            "Daily"
+        ]
+    },
+    "orddcm_documents": {
+        "load_type_column": null,
+        "load_id_column": "load_id",
+        "date_column": "load_id",
+        "supported_types": [
+            "Monthly",
+            "Daily"
+        ]
+    },
+    "orddcm_document_types": {
+        "load_type_column": null,
+        "load_id_column": "load_id",
+        "date_column": "load_id",
+        "supported_types": [
+            "Monthly",
+            "Daily"
+        ]
+    },
+    "website_analytics": {
+        "load_type_column": null,
+        "load_id_column": null,
+        "date_column": null,
+        "supported_types": []
+    }
+}

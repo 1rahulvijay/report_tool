@@ -16,7 +16,6 @@ class OracleAdapter(BaseDatabaseAdapter):
     def __init__(
         self, user: str, password: str, dsn: str, min_pool: int = 5, max_pool: int = 20
     ):
-        # Initialize connection pool for high concurrency (100-150 users)
         self.pool = oracledb.create_pool(
             user=user,
             password=password,
@@ -24,18 +23,36 @@ class OracleAdapter(BaseDatabaseAdapter):
             min=min_pool,
             max=max_pool,
             increment=1,
+            wait_timeout=5000,
         )
         self._cache = {}
         self._cache_ttl = 3600  # 1 hour
 
     @contextlib.contextmanager
     def connection(self):
-        """Safe connection context manager with auto-release."""
-        conn = self.pool.acquire()
-        try:
-            yield conn
-        finally:
-            self.pool.release(conn)
+        """Safe connection context manager with auto-release and retry logic."""
+        import time
+
+        max_retries = 3
+        retry_delay = 1.0
+
+        for attempt in range(max_retries):
+            try:
+                # Add wait_timeout to fail fast if pool is exhausted
+                conn = self.pool.acquire()  # 5 seconds wait
+                try:
+                    yield conn
+                finally:
+                    self.pool.release(conn)
+                return
+            except oracledb.DatabaseError as e:
+                # ORA-24459 or similar pool exhaustion errors
+                if attempt < max_retries - 1:
+                    time.sleep(retry_delay)
+                    continue
+                raise ValueError(
+                    "Database connection pool exhausted. Please try again in a moment."
+                ) from e
 
     def get_datasets(self) -> List[Dict[str, Any]]:
         """

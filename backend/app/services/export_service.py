@@ -56,9 +56,9 @@ class ExportService:
             if cls._instance is None:
                 cls._instance = super().__new__(cls)
                 cls._instance._jobs: Dict[str, ExportJob] = {}
-                # Bounded pool: max 4 concurrent exports to protect DB and memory
+                # Bounded pool: max 16 concurrent exports to handle load from 200 users
                 cls._instance._executor = ThreadPoolExecutor(
-                    max_workers=4, thread_name_prefix="ExportWorker"
+                    max_workers=16, thread_name_prefix="ExportWorker"
                 )
             return cls._instance
 

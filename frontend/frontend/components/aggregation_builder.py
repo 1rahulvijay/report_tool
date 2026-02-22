@@ -339,7 +339,7 @@ def aggregation_modal() -> rx.Component:
                                 spacing="2",
                             ),
                             on_click=AppState.apply_aggregations,
-                            class_name="px-5 py-2 flex items-center justify-center rounded-lg text-sm font-medium text-white bg-primary hover:bg-primary-hover shadow-lg shadow-primary/20 transition-all border border-transparent flex items-center gap-2 cursor-pointer shadow-primary/20",
+                            class_name="px-5 py-2 flex items-center justify-center rounded-lg text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-600/20 transition-all border border-transparent flex items-center gap-2 cursor-pointer shadow-blue-600/20",
                         ),
                         class_name="flex items-center justify-between px-6 py-4",
                     ),

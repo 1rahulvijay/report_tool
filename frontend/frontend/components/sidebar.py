@@ -32,64 +32,6 @@ def sidebar() -> rx.Component:
                     ),
                     class_name="bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-xl p-3.5 flex items-center gap-3 hover:border-primary/30 transition-colors cursor-pointer group",
                 ),
-                rx.cond(
-                    AppState.has_partition_info,
-                    rx.box(
-                        rx.menu.root(
-                            rx.menu.trigger(
-                                rx.button(
-                                    rx.box(
-                                        rx.text(
-                                            AppState.partition_load_type,
-                                            class_name="text-[9px] font-bold text-slate-500 uppercase tracking-widest",
-                                        ),
-                                        rx.text(
-                                            AppState.current_load_id_display,
-                                            class_name="text-xs font-bold text-slate-700 dark:text-slate-200 truncate uppercase mt-0.5",
-                                        ),
-                                        class_name="flex flex-col items-start leading-none gap-0.5 flex-1",
-                                    ),
-                                    rx.icon(
-                                        tag="chevron-down",
-                                        size=14,
-                                        class_name="text-slate-400 ml-1 shrink-0",
-                                    ),
-                                    class_name="w-full flex items-center justify-between px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer shadow-sm text-left h-auto",
-                                )
-                            ),
-                            rx.menu.content(
-                                rx.foreach(
-                                    AppState.partition_available_values,
-                                    lambda val: rx.menu.item(
-                                        rx.hstack(
-                                            rx.box(
-                                                rx.text(
-                                                    AppState.partition_load_type,
-                                                    class_name="text-[9px] font-bold text-slate-500 uppercase tracking-widest leading-none",
-                                                ),
-                                                rx.text(
-                                                    val,
-                                                    class_name="text-sm font-bold text-slate-700 dark:text-slate-200 leading-none",
-                                                ),
-                                                class_name="flex flex-col gap-1 items-start",
-                                            ),
-                                            class_name="w-full flex justify-between items-center",
-                                        ),
-                                        on_click=lambda: AppState.set_current_load_id(
-                                            val
-                                        ),
-                                        class_name=rx.cond(
-                                            val == AppState.current_load_id_display,
-                                            "font-bold text-primary bg-primary/5 cursor-pointer py-2",
-                                            "cursor-pointer py-2",
-                                        ),
-                                    ),
-                                )
-                            ),
-                        ),
-                        class_name="w-full mt-2",
-                    ),
-                ),
                 class_name="flex flex-col gap-2 shrink-0 mb-6",
             ),
             rx.box(
@@ -166,33 +108,45 @@ def sidebar() -> rx.Component:
                     AppState.selected_dataset != "",
                     rx.box(
                         rx.box(
-                            rx.box(
+                            rx.hstack(
                                 rx.text(
                                     "COLUMN NAMES",
-                                    class_name="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2",
+                                    class_name="text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap",
                                 ),
-                                rx.box(
-                                    rx.box(
-                                        rx.text("SELECT ALL"),
-                                        on_click=AppState.select_all_columns,
-                                        class_name="text-[9px] px-2 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold rounded flex items-center justify-center transition-colors cursor-pointer",
-                                    ),
-                                    rx.box(
-                                        rx.text("UNSELECT"),
-                                        on_click=AppState.unselect_all_columns,
-                                        class_name="text-[9px] px-2 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold rounded flex items-center justify-center transition-colors cursor-pointer",
-                                    ),
+                                rx.hstack(
                                     rx.cond(
-                                        AppState.columns_changed,
-                                        rx.box(
-                                            rx.text("RESET"),
-                                            on_click=AppState.clear_column_filters,
-                                            class_name="text-[9px] px-2 py-1 bg-red-50 hover:bg-red-100 text-red-600 font-bold rounded flex items-center justify-center transition-colors cursor-pointer border border-red-200",
+                                        AppState.columns_changed_from_all,
+                                        rx.button(
+                                            "SELECT ALL",
+                                            on_click=AppState.select_all_columns,
+                                            class_name="text-[9px] px-1.5 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold rounded flex items-center justify-center transition-colors cursor-pointer h-5 min-h-[20px] shadow-none outline-none focus:outline-none shrink-0 whitespace-nowrap",
+                                        ),
+                                        rx.button(
+                                            "SELECT ALL",
+                                            on_click=AppState.select_all_columns,
+                                            class_name="text-[9px] px-1.5 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold rounded flex items-center justify-center transition-colors cursor-pointer h-5 min-h-[20px] shadow-none outline-none focus:outline-none shrink-0 whitespace-nowrap",
                                         ),
                                     ),
-                                    class_name="flex items-center gap-2 mb-4 w-full shrink-0 flex-wrap",
+                                    rx.cond(
+                                        AppState.columns_changed_from_all,
+                                        rx.button(
+                                            "RESET",
+                                            on_click=AppState.select_all_columns,
+                                            class_name="text-[9px] px-1.5 py-1 bg-orange-50 hover:bg-orange-100 text-orange-600 font-bold rounded flex items-center justify-center border border-orange-200 transition-colors cursor-pointer h-5 min-h-[20px] shadow-none outline-none focus:outline-none shrink-0 whitespace-nowrap",
+                                        ),
+                                        rx.button(
+                                            "UNSELECT ALL",
+                                            on_click=AppState.unselect_all_columns,
+                                            class_name="text-[9px] px-1.5 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold rounded flex items-center justify-center transition-colors cursor-pointer h-5 min-h-[20px] shadow-none outline-none focus:outline-none shrink-0 whitespace-nowrap",
+                                        ),
+                                    ),
+                                    align="center",
+                                    spacing="1",
+                                    class_name="shrink-0",
                                 ),
-                                class_name="flex flex-col w-full shrink-0",
+                                align="center",
+                                justify="between",
+                                class_name="w-full mb-4 shrink-0 px-1 py-1 gap-y-2 flex-wrap",
                             ),
                             rx.box(
                                 rx.icon(

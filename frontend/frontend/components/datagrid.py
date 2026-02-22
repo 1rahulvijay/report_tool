@@ -62,48 +62,6 @@ def datagrid() -> rx.Component:
                             ),
                             class_name="text-xl font-bold tracking-tight text-slate-900 dark:text-white uppercase",
                         ),
-                        rx.cond(
-                            AppState.has_partition_info,
-                            rx.menu.root(
-                                rx.menu.trigger(
-                                    rx.button(
-                                        rx.box(
-                                            rx.text(
-                                                AppState.partition_load_type,
-                                                class_name="text-[9px] font-bold text-slate-500 uppercase tracking-widest",
-                                            ),
-                                            rx.text(
-                                                AppState.current_load_id_display,
-                                                class_name="text-sm font-bold text-slate-700 dark:text-slate-200",
-                                            ),
-                                            class_name="flex flex-col items-start leading-none gap-0.5",
-                                        ),
-                                        rx.icon(
-                                            tag="chevron-down",
-                                            size=14,
-                                            class_name="text-slate-400 ml-1",
-                                        ),
-                                        class_name="ml-3 flex items-center gap-1 px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer shadow-sm",
-                                    )
-                                ),
-                                rx.menu.content(
-                                    rx.foreach(
-                                        AppState.partition_available_values,
-                                        lambda val: rx.menu.item(
-                                            val,
-                                            on_click=lambda: (
-                                                AppState.set_current_load_id(val)
-                                            ),
-                                            class_name=rx.cond(
-                                                val == AppState.current_load_id_display,
-                                                "font-bold text-primary bg-primary/5 cursor-pointer",
-                                                "cursor-pointer",
-                                            ),
-                                        ),
-                                    )
-                                ),
-                            ),
-                        ),
                         class_name="flex items-center gap-2 mb-1",
                     ),
                     rx.text(
@@ -192,6 +150,25 @@ def datagrid() -> rx.Component:
                                 on_click=AppState.export_csv,
                                 class_name="cursor-pointer",
                             ),
+                        ),
+                    ),
+                    rx.cond(
+                        AppState.is_exporting,
+                        rx.box(
+                            rx.icon(
+                                tag="loader",
+                                class_name="animate-spin text-primary",
+                                size=16,
+                            ),
+                            rx.text(
+                                rx.cond(
+                                    AppState.export_status != "",
+                                    f"Exporting... {AppState.export_progress}%",
+                                    "Preparing export...",
+                                ),
+                                class_name="text-xs font-bold text-slate-700 dark:text-slate-300",
+                            ),
+                            class_name="flex items-center gap-2 px-3.5 py-2 bg-blue-50/50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-lg shadow-sm",
                         ),
                     ),
                     rx.button(

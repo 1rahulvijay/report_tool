@@ -1,10 +1,5 @@
-import reflex as rx
-import httpx
-from typing import List, Dict, Any, Optional
-import os
-
-# The base URL where our FastAPI backend is running
-API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8080/api/v1")
+from typing import List, Any
+import copy
 
 from .join import JoinState
 
@@ -22,14 +17,14 @@ class AggregationState(JoinState):
 
     def update_aggregation_row(self, index: int, field: str, value: str):
         """Updates a field in an aggregation row."""
-        rows = self.aggregations.copy()
+        rows = copy.deepcopy(self.aggregations)
         if 0 <= index < len(rows):
             rows[index][field] = value
             self.aggregations = rows
 
     def remove_aggregation_row(self, index: int):
         """Removes an aggregation metric row."""
-        rows = self.aggregations.copy()
+        rows = copy.deepcopy(self.aggregations)
         if 0 <= index < len(rows):
             rows.pop(index)
             self.aggregations = rows
@@ -57,7 +52,7 @@ class AggregationState(JoinState):
         yield
         from frontend.state import AppState
 
-        yield AppState.execute_query()
+        yield AppState.execute_query(force=True)
 
     async def reset_all(self):
         """Resets filters, joins, and aggregations."""
@@ -81,7 +76,7 @@ class AggregationState(JoinState):
         yield
         from frontend.state import AppState
 
-        yield AppState.execute_query()
+        yield AppState.execute_query(force=True)
 
     async def apply_aggregations(self):
         """Closes the modal and refreshes data with aggregations."""
@@ -120,7 +115,7 @@ class AggregationState(JoinState):
         self._sync_all_columns()
         from frontend.state import AppState
 
-        yield AppState.execute_query()
+        yield AppState.execute_query(force=True)
 
     async def apply_filters(self):
         """Closes the modal and executes the query."""
@@ -130,7 +125,7 @@ class AggregationState(JoinState):
         yield
         from frontend.state import AppState
 
-        yield AppState.execute_query()
+        yield AppState.execute_query(force=True)
 
     async def set_partition_values(self, dataset: str, values: List[Any]):
         """User selects specific partition values from the Data Vintage dropdown."""
@@ -148,7 +143,7 @@ class AggregationState(JoinState):
         self.query_results = []
         from frontend.state import AppState
 
-        yield AppState.execute_query()
+        yield AppState.execute_query(force=True)
 
     async def toggle_partition_unrestricted(self):
         """Toggle unrestricted mode (scan all partitions). Use with caution."""
@@ -157,4 +152,4 @@ class AggregationState(JoinState):
         self.query_results = []
         from frontend.state import AppState
 
-        yield AppState.execute_query()
+        yield AppState.execute_query(force=True)

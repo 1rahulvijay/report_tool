@@ -68,9 +68,10 @@ class BaseState(rx.State):
     # Partition / Data Vintage State
     partition_info: Dict[
         str, Any
-    ] = {}  # {column, load_type, available_values, max_value, min_value}
+    ] = {}  # {column, load_type_column, available_values, max_value, min_value}
     selected_partitions: Dict[str, List[Any]] = {}  # dataset_name -> [selected values]
     partition_unrestricted: bool = False  # "Select All" override
+    partition_load_type: str = ""  # Currently selected load type (e.g. "Monthly")
 
     async def fetch_datasets(self):
         """Fetch available datasets on load."""
@@ -109,6 +110,12 @@ class BaseState(rx.State):
                 part_info = data.get("partition_info")
                 if part_info:
                     self.partition_info = part_info
+
+                    # Set default load type
+                    supported_types = part_info.get("supported_types", [])
+                    if supported_types:
+                        self.partition_load_type = supported_types[0]
+
                     # Auto-select MAX partition value by default
                     if part_info.get("max_value") is not None:
                         self.selected_partitions = {
@@ -121,6 +128,7 @@ class BaseState(rx.State):
                     self.partition_info = {}
                     self.selected_partitions = {}
                     self.partition_unrestricted = False
+                    self.partition_load_type = ""
 
                 # Default all columns to visible (using sync to qualify them)
                 self.visible_columns = [col["name"] for col in self.columns]
@@ -150,18 +158,57 @@ class BaseState(rx.State):
 
     @rx.var
     def has_partition_info(self) -> bool:
-        """True when the selected dataset has partition metadata."""
-        return bool(self.partition_info) and bool(self.partition_info.get("column"))
+        """True when the selected dataset has partition metadata AND at least one component to show."""
+        if not self.partition_info:
+            return False
+
+        has_load_type = bool(self.partition_info.get("load_type_column"))
+        has_supported = bool(self.partition_info.get("supported_types"))
+        has_load_id = bool(self.partition_info.get("load_id_column"))
+        has_date = bool(self.partition_info.get("date_column"))
+
+        return has_load_type or has_supported or has_load_id or has_date
 
     @rx.var
-    def partition_load_type(self) -> str:
-        """Returns the load_type label (e.g., 'Monthly', 'Daily')."""
-        return self.partition_info.get("load_type", "")
+    def has_load_type(self) -> bool:
+        """True if the dataset has a load_type_column configured."""
+        return bool(self.partition_info.get("load_type_column"))
+
+    @rx.var
+    def has_load_id(self) -> bool:
+        """True if the dataset has a specific load_id column configured."""
+        return bool(self.partition_info.get("load_id_column"))
+
+    @rx.var
+    def has_date_column(self) -> bool:
+        """True if the dataset has a date_column configured for display."""
+        return bool(self.partition_info.get("date_column"))
+
+    @rx.var
+    def partition_supported_types(self) -> List[str]:
+        """Returns the list of supported types (e.g., 'Monthly', 'Daily')."""
+        return self.partition_info.get("supported_types", [])
+
+    async def set_partition_load_type(self, value: str):
+        """Change partition load type (e.g. from Monthly to Daily) and reload defaults."""
+        if not value or value == self.partition_load_type:
+            return
+        self.partition_load_type = value
+        # Reset the specific load id selection so we default to the newest of the new type
+        if self.partition_info.get("max_value") is not None:
+            self.selected_partitions = {
+                self.selected_dataset: [self.partition_info["max_value"]]
+            }
+
+        from frontend.state import AppState
+
+        self.page_number = 1
+        yield AppState.execute_query()
 
     @rx.var
     def partition_column_name(self) -> str:
-        """Returns the partition column name for display."""
-        return self.partition_info.get("column", "")
+        """Returns the user-friendly partition column name for display."""
+        return self.partition_info.get("date_column", "")
 
     @rx.var
     def partition_available_values(self) -> List[str]:
@@ -244,6 +291,11 @@ class BaseState(rx.State):
                 }
         return meta_map
 
+    @rx.var
+    def columns_changed_from_all(self) -> bool:
+        """Returns true if the user changed column selections from 'Select All'."""
+        return len(self.visible_columns) < len(self.columns)
+
     def _get_partition_filters(self) -> Optional[Dict[str, List[Any]]]:
         """
         Build the partition_filters dict for the backend payload.
@@ -255,6 +307,6 @@ class BaseState(rx.State):
         if not self.selected_partitions:
             return None
         # Only send partition filters if the backend confirmed the table is partitioned
-        if not self.partition_info or not self.partition_info.get("column"):
+        if not self.partition_info or not self.partition_info.get("load_id_column"):
             return None
         return self.selected_partitions

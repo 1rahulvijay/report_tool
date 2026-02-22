@@ -206,14 +206,26 @@ def _render_filter_row(rule: Dict[str, Any], path: List[int]) -> rx.Component:
                         ),
                         (
                             "number",
-                            rx.input(
-                                type="number",
-                                value=rule["value"],
-                                placeholder="Value...",
-                                on_change=lambda val: AppState.update_filter_item(
-                                    path, "value", val
+                            rx.cond(
+                                rule["operator"] == "between",
+                                rx.input(
+                                    type="text",
+                                    value=rule["value"],
+                                    placeholder="Min to Max (comma separated)",
+                                    on_change=lambda val: AppState.update_filter_item(
+                                        path, "value", val
+                                    ),
+                                    class_name="w-full h-10 text-sm border-border-light rounded-lg focus:ring-1 focus:ring-primary",
                                 ),
-                                class_name="w-full h-10 text-sm border-border-light rounded-lg focus:ring-1 focus:ring-primary",
+                                rx.input(
+                                    type="number",
+                                    value=rule["value"],
+                                    placeholder="Value...",
+                                    on_change=lambda val: AppState.update_filter_item(
+                                        path, "value", val
+                                    ),
+                                    class_name="w-full h-10 text-sm border-border-light rounded-lg focus:ring-1 focus:ring-primary",
+                                ),
                             ),
                         ),
                         # Default (String)

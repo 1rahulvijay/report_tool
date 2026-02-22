@@ -2,14 +2,29 @@ import os
 from typing import List, Dict, Any
 import reflex as rx
 import httpx
+import copy
 from .filter import FilterState
+
+# The base URL where our FastAPI backend is running
+API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8080/api/v1")
 
 
 class JoinState(FilterState):
     """Handles the complexities of multi-table joins and data merging."""
 
     OPERATOR_MAP: Dict[str, List[str]] = {
-        "number": ["=", "!=", "<", ">", "<=", ">=", "in", "is null", "is not null"],
+        "number": [
+            "=",
+            "!=",
+            "<",
+            ">",
+            "<=",
+            ">=",
+            "between",
+            "in",
+            "is null",
+            "is not null",
+        ],
         "string": [
             "=",
             "!=",
@@ -199,7 +214,7 @@ class JoinState(FilterState):
 
     def update_new_join_condition(self, index: int, field: str, value: str):
         """Updates a specific field (left_column or right_column) in a new join condition."""
-        new_conditions = self.new_join_conditions.copy()
+        new_conditions = copy.deepcopy(self.new_join_conditions)
         if 0 <= index < len(new_conditions):
             new_conditions[index][field] = value
             self.new_join_conditions = new_conditions
@@ -271,7 +286,7 @@ class JoinState(FilterState):
         self.is_join_modal_open = False
         from frontend.state import AppState
 
-        yield AppState.execute_query()
+        yield AppState.execute_query(force=True)
 
     async def reset_joins(self):
         """Clears all joins and reverts to the primary dataset view."""
@@ -301,7 +316,7 @@ class JoinState(FilterState):
         yield
         from frontend.state import AppState
 
-        yield AppState.execute_query()
+        yield AppState.execute_query(force=True)
 
     async def add_join(
         self, right_dataset: str, join_type: str, conditions: List[Dict[str, str]]
@@ -383,7 +398,7 @@ class JoinState(FilterState):
 
     async def add_filter_rule(self, path: List[int]):
         """Adds a simple rule to the group at the specified path."""
-        new_filters = self.active_filters.copy()
+        new_filters = copy.deepcopy(self.active_filters)
         target = self._get_group_at_path(new_filters, path)
         new_rule = {
             "type": "rule",
@@ -398,7 +413,7 @@ class JoinState(FilterState):
 
     async def add_filter_group(self, path: List[int]):
         """Adds a nested logical group to the group at the specified path."""
-        new_filters = self.active_filters.copy()
+        new_filters = copy.deepcopy(self.active_filters)
         target = self._get_group_at_path(new_filters, path)
         new_group = {"type": "group", "logic": "AND", "conditions": []}
         target["conditions"].append(new_group)
@@ -410,7 +425,7 @@ class JoinState(FilterState):
         if not path:
             return  # Cannot remove root group
 
-        new_filters = self.active_filters.copy()
+        new_filters = copy.deepcopy(self.active_filters)
         parent_path = path[:-1]
         index = path[-1]
         parent = self._get_group_at_path(new_filters, parent_path)
@@ -422,7 +437,7 @@ class JoinState(FilterState):
 
     async def update_filter_item(self, path: List[int], field: str, value: str):
         """Updates a specific property of a rule at a path."""
-        new_filters = self.active_filters.copy()
+        new_filters = copy.deepcopy(self.active_filters)
         # For update_filter_item, path points to the item itself
         parent_path = path[:-1]
         index = path[-1]
@@ -464,7 +479,7 @@ class JoinState(FilterState):
 
     async def set_filter_logic(self, path: List[int], val: str):
         """Sets the logic (AND/OR) for a group at a path."""
-        new_filters = self.active_filters.copy()
+        new_filters = copy.deepcopy(self.active_filters)
         target = self._get_group_at_path(new_filters, path)
         target["logic"] = "OR" if val in ["Match ANY", "OR"] else "AND"
         self.active_filters = new_filters
@@ -486,4 +501,4 @@ class JoinState(FilterState):
         yield
         from frontend.state import AppState
 
-        yield AppState.execute_query()
+        yield AppState.execute_query(force=True)

@@ -72,6 +72,7 @@ class FilterState(ColumnState):
                 ">=": "gte",
                 "<=": "lte",
                 "in": "in",
+                "between": "between",
                 "contains": "contains",
                 "not contains": "not_contains",
                 "starts with": "starts_with",
@@ -90,9 +91,13 @@ class FilterState(ColumnState):
             if backend_op in unary_ops:
                 value = None
 
-            # TC-DAT-01: Auto-split 'between' operator if it arrives as a comma-separated string
+            # TC-DAT-01: Auto-split 'between' operator if it arrives as a comma-separated or " TO " string
             if backend_op == "between" and isinstance(value, str):
-                if "," in value:
+                import re
+
+                if " to " in value.lower():
+                    value = [v.strip() for v in re.split(r"(?i)\s+to\s+", value)]
+                elif "," in value:
                     value = [v.strip() for v in value.split(",")]
                 else:
                     value = [value, value]  # fallback if they only select one date

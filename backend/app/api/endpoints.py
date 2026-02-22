@@ -1,7 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, Request
 from fastapi.responses import StreamingResponse
 from typing import Literal
-import traceback
 import io
 import xlsxwriter
 
@@ -19,6 +18,7 @@ from app.services.query_builder import QueryBuilderService, SQLGenerationError
 from app.services.export_service import export_service
 from app.core.config import get_settings
 from app.core.rate_limit import limiter
+from app.core.logger import logger
 
 
 router = APIRouter()
@@ -59,17 +59,28 @@ def get_dataset_columns(dataset_name: str, db: BaseDatabaseAdapter = Depends(get
         part_cfg = get_partition_config(dataset_name)
         if part_cfg:
             try:
-                part_data = db.get_partition_values(dataset_name, part_cfg["column"])
+                # We fetch partition dropdown values specifically using the ID column
+                part_data = None
+                if part_cfg.get("load_id_column"):
+                    part_data = db.get_partition_values(
+                        dataset_name, part_cfg["load_id_column"]
+                    )
+
                 partition_info = PartitionInfo(
-                    column=part_cfg["column"],
-                    load_type=part_cfg["load_type"],
-                    available_values=part_data["values"],
-                    max_value=part_data["max_value"],
-                    min_value=part_data["min_value"],
+                    load_type_column=part_cfg.get("load_type_column"),
+                    load_id_column=part_cfg.get("load_id_column"),
+                    date_column=part_cfg.get("date_column"),
+                    supported_types=part_cfg.get("supported_types", []),
+                    available_values=part_data["values"] if part_data else [],
+                    max_value=part_data["max_value"] if part_data else None,
+                    min_value=part_data["min_value"] if part_data else None,
                 )
             except Exception as e:
                 # If partition query fails (e.g., column doesn't exist yet), skip
-                print(f"Partition query failed for {dataset_name}: {e}")
+                logger.warning(
+                    f"Partition query failed for {dataset_name}",
+                    extra={"error": str(e)},
+                )
                 pass
 
         return DatasetColumnsResponse(
@@ -84,7 +95,7 @@ def get_dataset_columns(dataset_name: str, db: BaseDatabaseAdapter = Depends(get
 
 
 @router.post("/query/preview", response_model=PreviewResponse)
-@limiter.limit("30/minute")  # Protect DB from rapid-fire query building
+@limiter.limit("300/minute")  # Protect DB from rapid-fire query building
 async def preview_query(
     request: Request,  # Required by slowapi
     query_request: QueryRequest,
@@ -153,7 +164,16 @@ async def preview_query(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.error(
+            "Query Execution Error",
+            extra={
+                "error": str(e),
+                "sql": sql,
+                "dataset": query_request.dataset,
+                "params": params,
+            },
+            exc_info=True,
+        )
         raise HTTPException(
             status_code=500, detail=f"Database Execution Error: {str(e)}"
         )
@@ -171,7 +191,7 @@ def get_debug_settings(settings=Depends(get_settings)):
 
 
 @router.post("/query/export")
-@limiter.limit("5/minute")  # Throttle heavy exports
+@limiter.limit("50/minute")  # Throttle heavy exports
 def export_query(
     request: Request,  # Required by slowapi
     format: Literal["csv", "excel"],
@@ -261,7 +281,15 @@ def export_query(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.error(
+            "Export Execution Error",
+            extra={
+                "error": str(e),
+                "format": format,
+                "dataset": query_request.dataset,
+            },
+            exc_info=True,
+        )
         raise HTTPException(status_code=500, detail=f"Database Export Error: {str(e)}")
 
 

@@ -1,0 +1,15 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: aurora-nexus
+  labels:
+    app: aurora-nexus
+spec:
+  to:
+    kind: Service
+    name: aurora-nexus
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect

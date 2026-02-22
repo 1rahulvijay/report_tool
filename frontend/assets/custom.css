@@ -1,0 +1,44 @@
+@theme {
+    --color-primary: #3b82f6;
+    --color-background-light: #f8fafc;
+    --color-background-dark: #0f172a;
+    --color-accent-blue: #60a5fa;
+    --font-display: "Inter", sans-serif;
+    --font-sans: "Inter", sans-serif;
+}
+
+@layer base {
+    body {
+        font-family: 'Inter', sans-serif;
+        letter-spacing: -0.011em;
+    }
+}
+.glass-header {
+    backdrop-filter: blur(12px);
+    background-color: rgba(255, 255, 255, 0.8);
+}
+.dark .glass-header {
+    background-color: rgba(15, 23, 42, 0.8);
+}
+.custom-scrollbar::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #e2e8f0;
+    border-radius: 10px;
+}
+.dark .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #334155;
+}
+.in-memory-active {
+    box-shadow: 0 0 15px -3px rgba(59, 130, 246, 0.4);
+    border-color: rgba(59, 130, 246, 0.5);
+}
+.table-header-cell {
+    letter-spacing: 0.05em;
+    font-size: 11px;
+}

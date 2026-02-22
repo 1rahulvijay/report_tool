@@ -1,0 +1,270 @@
+Debug: Overriding config value loglevel with env var LOGLEVEL=debug
+Warning: Windows Subsystem for Linux (WSL) is recommended for improving initial
+install times.
+───────────────────────────────── System Info ─────────────────────────────────
+Debug: Config file: 
+'C:\\Users\\rahul\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\site-packa
+ges\\reflex\\config.py'
+Debug: Config: Config(app_name='frontend', app_module_import=None, 
+loglevel=<LogLevel.DEBUG: 'debug'>, frontend_port=None, frontend_path='', 
+backend_port=None, api_url='http://localhost:8000', 
+deploy_url='http://localhost:3000', backend_host='0.0.0.0', 
+db_url='sqlite:///reflex.db', async_db_url=None, redis_url=None, 
+telemetry_enabled=True, enable_pyleak_monitoring=False, 
+pyleak_blocking_threshold=0.1, pyleak_thread_grace_period=0.2, 
+pyleak_action=None, 
+bun_path=WindowsPath('C:/Users/rahul/AppData/Local/reflex/bun/bin/bun.exe'), 
+static_page_generation_timeout=60, cors_allowed_origins=('*',), 
+react_strict_mode=True, frontend_packages=[], 
+state_manager_mode=<StateManagerMode.DISK: 'disk'>, 
+redis_lock_expiration=10000, redis_lock_warning_threshold=1000, 
+redis_token_expiration=3600, _non_default_attributes={'loglevel', 
+'backend_host', 'app_name', 'plugins'}, env_file=None, state_auto_setters=None,
+show_built_with_reflex=None, is_reflex_cloud=False, 
+extra_overlay_function=None, plugins=[SitemapPlugin(), 
+TailwindV4Plugin(config={'plugins': ['@tailwindcss/typography@0.5.19']})], 
+disable_plugins=[], transport='websocket')
+Debug: Running command: [WindowsPath('C:/Program Files/nodejs/node.EXE'), 
+'--version']
+Debug: Running command: 
+[WindowsPath('C:/Users/rahul/AppData/Local/reflex/bun/bin/bun.exe'), 
+'--version']
+Debug: [Reflex 0.8.27 with Python 3.13.2 (PATH: 
+C:\Users\rahul\AppData\Local\Programs\Python\Python313\python.exe)]
+Debug: [Node 22.17.1 (Minimum: 20.19.0) (PATH:C:\Program 
+Files\nodejs\node.EXE)]
+Debug: [Bun 1.3.6 (Minimum: 1.3.0) (PATH: 
+C:\Users\rahul\AppData\Local\reflex\bun\bin\bun.exe)]
+Debug: [OS Windows 10.0.26200]
+Debug: Using package installer at: 
+['C:\\Users\\rahul\\AppData\\Local\\reflex\\bun\\bin\\bun.exe', 'C:\\Program 
+Files\\nodejs\\npm.CMD']
+Debug: Using package executer at: 
+[['C:\\Users\\rahul\\AppData\\Local\\reflex\\bun\\bin\\bun.exe'], ['C:\\Program
+Files\\nodejs\\npm.CMD']]
+───────────── Compiling production app and preparing for export. ──────────────
+Debug: Evaluating page: index
+Debug: Evaluating page: 404
+Debug: Slowest pages:
+index: 174.9ms
+404: 0.3ms
+Debug: [timing] Evaluate Pages (Frontend): 0.18s
+Debug: [timing] Collect all imports and app wraps: 0.05s
+Debug: [timing] Auto-memoize StatefulComponents: 0.20s
+Debug: [timing] Copy assets: 0.00s
+Debug: [timing] Compile to Javascript: 0.16s
+[01:52:37] Compiling: -------------------------------------- 100% 21/21 0:00:00
+Debug: Running command: 
+['C:\\Users\\rahul\\AppData\\Local\\reflex\\bun\\bin\\bun.exe', 'install', 
+'--legacy-peer-deps']
+Debug: Installing base frontend packages
+Debug: bun install v1.3.6 (d530ed99)
+Debug: 
+Debug: Checked 279 installs across 326 packages (no changes) [54.00ms]
+Debug: Running command: 
+['C:\\Users\\rahul\\AppData\\Local\\reflex\\bun\\bin\\bun.exe', 'add', 
+'--legacy-peer-deps', '-d', '@tailwindcss/typography@0.5.19', 
+'tailwindcss@4.1.18', '@tailwindcss/postcss@4.1.18']
+Debug: Installing frontend development dependencies
+Debug: bun add v1.3.6 (d530ed99)
+Debug: Saved lockfile
+Debug: 
+Debug: installed @tailwindcss/typography@0.5.19
+Debug: installed tailwindcss@4.1.18
+Debug: installed @tailwindcss/postcss@4.1.18
+Debug: 
+Debug: [176.00ms] done
+Debug: Running command: 
+['C:\\Users\\rahul\\AppData\\Local\\reflex\\bun\\bin\\bun.exe', 'add', 
+'--legacy-peer-deps', '@radix-ui/themes@3.2.1', 'react-debounce-input@3.3.0', 
+'react-error-boundary@6.1.0', 'sonner@2.0.7', 'lucide-react@0.562.0']
+Debug: Installing frontend packages from config and components
+Debug: bun add v1.3.6 (d530ed99)
+Debug: Saved lockfile
+Debug: 
+Debug: installed @radix-ui/themes@3.2.1
+Debug: installed react-debounce-input@3.3.0
+Debug: installed react-error-boundary@6.1.0
+Debug: installed sonner@2.0.7
+Debug: installed lucide-react@0.562.0
+Debug: 
+Debug: [525.00ms] done
+Debug: [timing] Install Frontend Packages: 0.98s
+Debug: [timing] Write to Disk: 0.01s
+Debug: Running command: 
+['C:\\Users\\rahul\\AppData\\Local\\reflex\\bun\\bin\\bun.exe', 'run', 
+'export']
+Debug: Creating Production Build
+Debug: $ react-router build
+Debug: rolldown-vite v7.3.1 building client environment for production...
+Debug: [33mWarning: Invalid input options (1 issue found)
+Debug: - For the "jsx". Invalid key: Expected never but received "jsx". [0m
+Debug: transforming...
+Debug: ✓ 2019 modules transformed.
+Debug: ✗ Build failed in 6.58s
+Debug: Build failed with 1 error:
+Debug: 
+Debug: [plugin vite:css] 
+C:/Users/rahul/Documents/Aurora/frontend/.web/styles/__reflex_global_styles.css
+?transform-only
+Debug: Failed to load PostCSS config: Failed to load PostCSS config 
+(searchPath: C:/Users/rahul/Documents/Aurora/frontend/.web): [Error] Loading 
+PostCSS Plugin failed: Cannot find module '../lightningcss.win32-x64-msvc.node'
+Debug: Require stack:
+Debug: - 
+C:\Users\rahul\Documents\Aurora\frontend\.web\node_modules\@tailwindcss\node\no
+de_modules\lightningcss\node\index.js
+Debug: - 
+C:\Users\rahul\Documents\Aurora\frontend\.web\node_modules\@tailwindcss\node\di
+st\index.js
+Debug: - 
+C:\Users\rahul\Documents\Aurora\frontend\.web\node_modules\@tailwindcss\postcss
+\dist\index.js
+Debug: 
+Debug: (@C:\Users\rahul\Documents\Aurora\frontend\.web\postcss.config.js)
+Debug: Error: Loading PostCSS Plugin failed: Cannot find module 
+'../lightningcss.win32-x64-msvc.node'
+Debug: Require stack:
+Debug: - 
+C:\Users\rahul\Documents\Aurora\frontend\.web\node_modules\@tailwindcss\node\no
+de_modules\lightningcss\node\index.js
+Debug: - 
+C:\Users\rahul\Documents\Aurora\frontend\.web\node_modules\@tailwindcss\node\di
+st\index.js
+Debug: - 
+C:\Users\rahul\Documents\Aurora\frontend\.web\node_modules\@tailwindcss\postcss
+\dist\index.js
+Debug: 
+Debug: (@C:\Users\rahul\Documents\Aurora\frontend\.web\postcss.config.js)
+Debug:     at load 
+(file:///C:/Users/rahul/Documents/Aurora/frontend/.web/node_modules/vite/dist/n
+ode/chunks/node.js:22012:10)
+Debug:     at async Promise.all (index 0)
+Debug:     at plugins 
+(file:///C:/Users/rahul/Documents/Aurora/frontend/.web/node_modules/vite/dist/n
+ode/chunks/node.js:22034:11)
+Debug:     at processResult 
+(file:///C:/Users/rahul/Documents/Aurora/frontend/.web/node_modules/vite/dist/n
+ode/chunks/node.js:22073:13)
+Debug:     at aggregateBindingErrorsIntoJsError 
+(file:///C:/Users/rahul/Documents/Aurora/frontend/.web/node_modules/rolldown/di
+st/shared/bindingify-input-options-Bk0BBr2s.mjs:56:18)
+Debug:     at unwrapBindingResult 
+(file:///C:/Users/rahul/Documents/Aurora/frontend/.web/node_modules/rolldown/di
+st/shared/bindingify-input-options-Bk0BBr2s.mjs:31:128)
+Debug:     at RolldownBuild.#build 
+(file:///C:/Users/rahul/Documents/Aurora/frontend/.web/node_modules/rolldown/di
+st/shared/rolldown-build-BEU8N80I.mjs:2260:34)
+Debug:     at buildEnvironment 
+(file:///C:/Users/rahul/Documents/Aurora/frontend/.web/node_modules/vite/dist/n
+ode/chunks/node.js:32805:64)
+Debug:     at Object.build 
+(file:///C:/Users/rahul/Documents/Aurora/frontend/.web/node_modules/vite/dist/n
+ode/chunks/node.js:33208:19)
+Debug:     at buildEnvironment 
+(C:\Users\rahul\Documents\Aurora\frontend\.web\node_modules\@react-router\dev\d
+ist\cli\index.js:2028:5)
+Debug:     at viteBuild 
+(C:\Users\rahul\Documents\Aurora\frontend\.web\node_modules\@react-router\dev\d
+ist\cli\index.js:2059:3)
+Debug:     at build 
+(C:\Users\rahul\Documents\Aurora\frontend\.web\node_modules\@react-router\dev\d
+ist\cli\index.js:1925:10)
+Debug:     at build2 
+(C:\Users\rahul\Documents\Aurora\frontend\.web\node_modules\@react-router\dev\d
+ist\cli\index.js:2263:5)
+Debug:     at run2 
+(C:\Users\rahul\Documents\Aurora\frontend\.web\node_modules\@react-router\dev\d
+ist\cli\index.js:2568:7) {
+Debug:   errors: [Getter/Setter]
+Debug: }
+Debug: error: script "export" exited with code 1
+Creating Production Build failed with exit code 1
+$ react-router build
+rolldown-vite v7.3.1 building client environment for production...
+[33mWarning: Invalid input options (1 issue found)
+- For the "jsx". Invalid key: Expected never but received "jsx". [0m
+transforming...
+✓ 2019 modules transformed.
+✗ Build failed in 6.58s
+Build failed with 1 error:
+
+ C:/Users/rahul/Documents/Aurora/frontend/.web/styles/__reflex_global_styles.cs
+s?transform-only
+Failed to load PostCSS config: Failed to load PostCSS config (searchPath: 
+C:/Users/rahul/Documents/Aurora/frontend/.web): [Error] Loading PostCSS Plugin 
+failed: Cannot find module '../lightningcss.win32-x64-msvc.node'
+Require stack:
+- 
+C:\Users\rahul\Documents\Aurora\frontend\.web\node_modules\@tailwindcss\node\no
+de_modules\lightningcss\node\index.js
+- 
+C:\Users\rahul\Documents\Aurora\frontend\.web\node_modules\@tailwindcss\node\di
+st\index.js
+- 
+C:\Users\rahul\Documents\Aurora\frontend\.web\node_modules\@tailwindcss\postcss
+\dist\index.js
+
+(@C:\Users\rahul\Documents\Aurora\frontend\.web\postcss.config.js)
+Error: Loading PostCSS Plugin failed: Cannot find module 
+'../lightningcss.win32-x64-msvc.node'
+Require stack:
+- 
+C:\Users\rahul\Documents\Aurora\frontend\.web\node_modules\@tailwindcss\node\no
+de_modules\lightningcss\node\index.js
+- 
+C:\Users\rahul\Documents\Aurora\frontend\.web\node_modules\@tailwindcss\node\di
+st\index.js
+- 
+C:\Users\rahul\Documents\Aurora\frontend\.web\node_modules\@tailwindcss\postcss
+\dist\index.js
+
+(@C:\Users\rahul\Documents\Aurora\frontend\.web\postcss.config.js)
+    at load 
+(file:///C:/Users/rahul/Documents/Aurora/frontend/.web/node_modules/vite/dist/n
+ode/chunks/node.js:22012:10)
+    at async Promise.all (index 0)
+    at plugins 
+(file:///C:/Users/rahul/Documents/Aurora/frontend/.web/node_modules/vite/dist/n
+ode/chunks/node.js:22034:11)
+    at processResult 
+(file:///C:/Users/rahul/Documents/Aurora/frontend/.web/node_modules/vite/dist/n
+ode/chunks/node.js:22073:13)
+    at aggregateBindingErrorsIntoJsError 
+(file:///C:/Users/rahul/Documents/Aurora/frontend/.web/node_modules/rolldown/di
+st/shared/bindingify-input-options-Bk0BBr2s.mjs:56:18)
+    at unwrapBindingResult 
+(file:///C:/Users/rahul/Documents/Aurora/frontend/.web/node_modules/rolldown/di
+st/shared/bindingify-input-options-Bk0BBr2s.mjs:31:128)
+    at RolldownBuild.#build 
+(file:///C:/Users/rahul/Documents/Aurora/frontend/.web/node_modules/rolldown/di
+st/shared/rolldown-build-BEU8N80I.mjs:2260:34)
+    at buildEnvironment 
+(file:///C:/Users/rahul/Documents/Aurora/frontend/.web/node_modules/vite/dist/n
+ode/chunks/node.js:32805:64)
+    at Object.build 
+(file:///C:/Users/rahul/Documents/Aurora/frontend/.web/node_modules/vite/dist/n
+ode/chunks/node.js:33208:19)
+    at buildEnvironment 
+(C:\Users\rahul\Documents\Aurora\frontend\.web\node_modules\@react-router\dev\d
+ist\cli\index.js:2028:5)
+    at viteBuild 
+(C:\Users\rahul\Documents\Aurora\frontend\.web\node_modules\@react-router\dev\d
+ist\cli\index.js:2059:3)
+    at build 
+(C:\Users\rahul\Documents\Aurora\frontend\.web\node_modules\@react-router\dev\d
+ist\cli\index.js:1925:10)
+    at build2 
+(C:\Users\rahul\Documents\Aurora\frontend\.web\node_modules\@react-router\dev\d
+ist\cli\index.js:2263:5)
+    at run2 
+(C:\Users\rahul\Documents\Aurora\frontend\.web\node_modules\@react-router\dev\d
+ist\cli\index.js:2568:7) {
+  errors: [Getter/Setter]
+}
+error: script "export" exited with code 1
+
+
+
+Run with --loglevel debug  for the full log.
+Creating Production Build:  -----------------                   50% 2/4 0:00:08

@@ -1,0 +1,66 @@
+# Scale Analysis: 200 Concurrent Users
+
+## Current Architecture State
+
+The Aurora Reporting Portal uses a modern, highly decoupled architecture:
+1.  **Frontend**: Reflex (React/NextJS compiled via Python)
+2.  **Backend API**: FastAPI (Asynchronous ASGI server)
+3.  **Database**: Oracle (via `oracledb` python driver with connection pooling)
+
+## Can it support 200 concurrent users?
+
+**Out-of-the-box, the current configuration will struggle and likely experience queueing delays or dropped queries during peak concurrency.**
+
+Here is the breakdown of the bottlenecks and how to solve them:
+
+### 1. The Database Connection Pool (Critical Bottleneck)
+**Current State:** 
+In [app/core/config.py](file:///c:/Users/rahul/OneDrive/Documents/Aurora/backend/app/core/config.py), the Oracle Connection pool is strictly capped:
+*   `ORACLE_MIN_POOL`: 5
+*   `ORACLE_MAX_POOL`: 20
+
+**Impact at 200 users:**
+If 200 users attempt to execute a query, filter a dropdown (which triggers a `DISTINCT` query), or fetch datasets at the exact same moment, only 20 transactions can occur simultaneously. The other 180 requests will be queued by the Oracle Driver. If a query takes 2 seconds to run, user #200 might wait 20 seconds just to get a database connection.
+
+**How to Improve:**
+*   **Increase `ORACLE_MAX_POOL`**: Bump this to `100` or `150` in the [.env](file:///c:/Users/rahul/OneDrive/Documents/Aurora/backend/.env) production file.
+*   **Oracle Server Capacity**: Ensure the underlying Oracle Database server is configured to accept at least `processes=300` and `sessions=300`, so the backend expanding its pool doesn't crash the database listener.
+
+### 2. FastAPI and ASGI Workers
+**Current State:**
+FastAPI is fundamentally asynchronous, which is fantastic for concurrency. When an endpoint is waiting for the Oracle DB to return data, FastAPI yields the CPU thread to handle other incoming user HTTP requests.
+
+**Impact at 200 users:**
+If you run FastAPI with only a single generic Uvicorn worker (e.g., `uvicorn app.main:app`), that single python process still has to serialize/deserialize all JSON payloads for 200 users. For large datasets (e.g., millions of rows), JSON serialization is CPU-bound and blocks the event loop.
+
+**How to Improve:**
+*   **Deploy with Gunicorn + Multiple Uvicorn Workers**: When running in production, you must spawn multiple worker processes mapped to the server's CPU cores.
+*   *Example launch command*: `gunicorn app.main:app -w 4 -k uvicorn.workers.UvicornWorker`
+*   This splits the JSON serialization load across 4 CPU cores instead of 1.
+
+### 3. Asynchronous Export Limits
+**Current State:**
+Large data exports (Excel files up to 100,000 rows) are handled by spinning up background threads using FastAPI's `BackgroundTasks`.
+
+**Impact at 200 users:**
+If 50 users click "Export to Excel" simultaneously for large datasets, the backend will spawn 50 heavy I/O operations in python threads, spiking RAM and CPU. Excel file generation natively blocks the CPU.
+
+**How to Improve:**
+*   Limit the number of concurrent asynchronous exports or offload them to a dedicated task queue like **Celery** or **Redis Queue (RQ)**. The current architecture runs background tasks directly within the FastAPI node, which shares resources with live API queries.
+
+### 4. Reflex Frontend Websockets
+**Current State:**
+Reflex manages state exclusively over WebSockets. Every time a user clicks a button or types in an input, a WebSocket message is passed to a backend Reflex server, which updates the state and sends back the DOM diff.
+
+**Impact at 200 users:**
+200 concurrent users means 200 persistently open WebSocket connections.
+
+**How to Improve:**
+*   Ensure the reverse proxy (Nginx or Traefik) in front of the application is tuned to allow high numbers of concurrent `Upgrade: websocket` connections, with long timeout limits to prevent users from constantly disconnecting and reconnecting.
+*   Use `rx.cond` and `rx.var` effectively on the frontend (which is currently implemented well) to avoid unnecessary roundtrips.
+
+## Summary Checklist for 200-User Production Deployment
+1. [ ] Set `ORACLE_MAX_POOL=150` in [.env](file:///c:/Users/rahul/OneDrive/Documents/Aurora/backend/.env).
+2. [ ] Verify Oracle DB parameter `processes` is `> 300`.
+3. [ ] Launch FastAPI using Gunicorn with `workers = CPU Cores * 2`.
+4. [ ] Ensure Nginx is configured for at least `worker_connections 1024` to handle the Reflex WebSockets smoothly.

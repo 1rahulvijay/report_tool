@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+pydantic-settings
+oracledb
+xlsxwriter
+pandas
+httpx
+python-multipart
+python-json-logger==2.0.7
+slowapi==0.1.9

@@ -172,7 +172,7 @@ def datagrid() -> rx.Component:
                         ),
                     ),
                     rx.button(
-                        rx.icon(tag="more-vertical", size=20),
+                        rx.icon(tag="ellipsis-vertical", size=20),
                         class_name="p-2 text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg transition-all bg-transparent border-none cursor-pointer",
                     ),
                     class_name="flex items-center gap-3",

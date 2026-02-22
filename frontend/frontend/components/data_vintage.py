@@ -97,7 +97,7 @@ def data_vintage_bar() -> rx.Component:
                     rx.cond(
                         AppState.partition_unrestricted,
                         rx.button(
-                            rx.icon(tag="unlock", size=14),
+                            rx.icon(tag="lock-open", size=14),
                             "ALL PARTITIONS",
                             on_click=AppState.toggle_partition_unrestricted,
                             class_name="px-3 py-1.5 bg-orange-50 text-orange-600 border border-orange-200 rounded-md text-xs font-bold flex items-center gap-2 cursor-pointer hover:bg-orange-100 transition-colors shadow-sm",

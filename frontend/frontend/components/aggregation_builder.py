@@ -235,7 +235,7 @@ def aggregation_modal() -> rx.Component:
                             rx.box(
                                 rx.box(
                                     rx.icon(
-                                        tag="function-square",
+                                        tag="square-function",
                                         size=20,
                                     ),
                                     class_name="p-1.5 bg-emerald-100 rounded text-emerald-700 flex items-center justify-center shadow-sm",
@@ -249,7 +249,7 @@ def aggregation_modal() -> rx.Component:
                             rx.box(
                                 rx.hstack(
                                     rx.icon(
-                                        tag="plus-circle",
+                                        tag="circle-plus",
                                         size=16,
                                     ),
                                     rx.text("Add Aggregation"),

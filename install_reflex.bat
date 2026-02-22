@@ -13,6 +13,8 @@ cd .web
 :: jsesc@3.0.2 is historically required to prevent Babel build errors 
 call npm install jsesc@3.0.2 --legacy-peer-deps
 call npm install --legacy-peer-deps
+echo Running npm audit fix to resolve vulnerabilities...
+call npm audit fix
 cd ..
 
 echo [3/3] Exporting production build to verify installation...

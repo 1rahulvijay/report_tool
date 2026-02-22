@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Any, List, Optional
+from typing import Any, List, Optional, Dict
 from datetime import datetime
 
 
@@ -65,6 +65,10 @@ class PartitionInfo(BaseModel):
     available_values: List[Any] = Field(
         default_factory=list,
         description="Distinct partition values in descending order (most recent first)",
+    )
+    available_values_map: Optional[Dict[str, List[Any]]] = Field(
+        None,
+        description="Map of load_type -> list of distinct partition values",
     )
     max_value: Optional[Any] = Field(
         None, description="Latest available partition value"

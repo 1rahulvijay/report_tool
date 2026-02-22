@@ -36,6 +36,7 @@ class AppState(AggregationState):
 
         if not self.is_fetching_more:
             self.is_loading = True
+            yield  # Force UI to render spinner before blocking query
 
         self.error_message = ""
 

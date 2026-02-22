@@ -59,11 +59,11 @@ def get_dataset_columns(dataset_name: str, db: BaseDatabaseAdapter = Depends(get
         part_cfg = get_partition_config(dataset_name)
         if part_cfg:
             try:
-                # We fetch partition dropdown values specifically using the ID column
-                part_data = None
                 if part_cfg.get("load_id_column"):
                     part_data = db.get_partition_values(
-                        dataset_name, part_cfg["load_id_column"]
+                        dataset_name,
+                        part_cfg["load_id_column"],
+                        load_type_column=part_cfg.get("load_type_column"),
                     )
 
                 partition_info = PartitionInfo(
@@ -72,6 +72,9 @@ def get_dataset_columns(dataset_name: str, db: BaseDatabaseAdapter = Depends(get
                     date_column=part_cfg.get("date_column"),
                     supported_types=part_cfg.get("supported_types", []),
                     available_values=part_data["values"] if part_data else [],
+                    available_values_map=part_data.get("values_map")
+                    if part_data
+                    else None,
                     max_value=part_data["max_value"] if part_data else None,
                     min_value=part_data["min_value"] if part_data else None,
                 )

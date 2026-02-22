@@ -65,6 +65,14 @@ def data_vintage_bar() -> rx.Component:
                             class_name="text-xs font-semibold min-w-[140px] bg-white border border-slate-200 rounded-md py-1",
                             size="1",
                         ),
+                        rx.cond(
+                            AppState.is_loading,
+                            rx.icon(
+                                tag="loader-circle",
+                                size=14,
+                                class_name="animate-spin text-primary",
+                            ),
+                        ),
                         class_name="flex items-center gap-2",
                     ),
                 ),

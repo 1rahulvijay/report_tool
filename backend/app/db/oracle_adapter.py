@@ -252,7 +252,8 @@ class OracleAdapter(BaseDatabaseAdapter):
         self,
         dataset_name: str,
         partition_column: str,
-        limit: int = 24,
+        load_type_column: Optional[str] = None,
+        limit: int = 50,
     ) -> Dict[str, Any]:
         """
         Fetch distinct partition values for a dataset's load ID column.
@@ -260,19 +261,44 @@ class OracleAdapter(BaseDatabaseAdapter):
         table_name = dataset_name.upper()
         col_name = partition_column.upper()
 
-        query = f'SELECT DISTINCT "{col_name}" FROM "{table_name}" ORDER BY "{col_name}" DESC'
-        # Add Oracle row limit
-        query = f"SELECT * FROM ({query}) WHERE ROWNUM <= {limit}"
+        if load_type_column:
+            lt_col = load_type_column.upper()
+            query = f'SELECT DISTINCT "{lt_col}", "{col_name}" FROM "{table_name}" ORDER BY "{col_name}" DESC'
+            query = f"SELECT * FROM ({query}) WHERE ROWNUM <= {limit}"
 
-        with self.connection() as conn:
-            with conn.cursor() as cursor:
-                cursor.execute(query)
-                values = [row[0] for row in cursor]
-                return {
-                    "values": values,
-                    "max_value": values[0] if values else None,
-                    "min_value": values[-1] if values else None,
-                }
+            with self.connection() as conn:
+                with conn.cursor() as cursor:
+                    cursor.execute(query)
+                    values = []
+                    values_map = {}
+                    for row in cursor:
+                        lt_val = str(row[0]) if row[0] is not None else "UNKNOWN"
+                        id_val = row[1]
+                        values.append(id_val)
+                        if lt_val not in values_map:
+                            values_map[lt_val] = []
+                        values_map[lt_val].append(id_val)
+
+                    return {
+                        "values": values,
+                        "values_map": values_map,
+                        "max_value": values[0] if values else None,
+                        "min_value": values[-1] if values else None,
+                    }
+        else:
+            query = f'SELECT DISTINCT "{col_name}" FROM "{table_name}" ORDER BY "{col_name}" DESC'
+            # Add Oracle row limit
+            query = f"SELECT * FROM ({query}) WHERE ROWNUM <= {limit}"
+
+            with self.connection() as conn:
+                with conn.cursor() as cursor:
+                    cursor.execute(query)
+                    values = [row[0] for row in cursor]
+                    return {
+                        "values": values,
+                        "max_value": values[0] if values else None,
+                        "min_value": values[-1] if values else None,
+                    }
 
     def execute_query_cursor(
         self,

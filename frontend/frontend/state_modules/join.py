@@ -396,8 +396,26 @@ class JoinState(FilterState):
                 new_visible.append(vcol)
         self.visible_columns = new_visible
 
-    async def add_filter_rule(self, path: List[int]):
+    def _flatten_path(self, raw_path: Any) -> List[int]:
+        """Flattens arbitrarily nested lists of path indices received from the frontend."""
+        if isinstance(raw_path, int):
+            return [raw_path]
+        elif isinstance(raw_path, str):
+            try:
+                val = int(raw_path)
+                return [val]
+            except ValueError:
+                return []
+        elif isinstance(raw_path, list):
+            flat = []
+            for item in raw_path:
+                flat.extend(self._flatten_path(item))
+            return flat
+        return []
+
+    async def add_filter_rule(self, raw_path: Any):
         """Adds a simple rule to the group at the specified path."""
+        path = self._flatten_path(raw_path)
         new_filters = copy.deepcopy(self.active_filters)
         target = self._get_group_at_path(new_filters, path)
         new_rule = {
@@ -411,8 +429,9 @@ class JoinState(FilterState):
         self.active_filters = new_filters
         yield
 
-    async def add_filter_group(self, path: List[int]):
+    async def add_filter_group(self, raw_path: Any):
         """Adds a nested logical group to the group at the specified path."""
+        path = self._flatten_path(raw_path)
         new_filters = copy.deepcopy(self.active_filters)
         target = self._get_group_at_path(new_filters, path)
         new_group = {"type": "group", "logic": "AND", "conditions": []}
@@ -420,8 +439,9 @@ class JoinState(FilterState):
         self.active_filters = new_filters
         yield
 
-    async def remove_filter_item(self, path: List[int]):
+    async def remove_filter_item(self, raw_path: Any):
         """Removes a rule or group at the specified path."""
+        path = self._flatten_path(raw_path)
         if not path:
             return  # Cannot remove root group
 
@@ -430,20 +450,25 @@ class JoinState(FilterState):
         index = path[-1]
         parent = self._get_group_at_path(new_filters, parent_path)
 
-        if 0 <= index < len(parent["conditions"]):
+        if "conditions" in parent and 0 <= index < len(parent["conditions"]):
             parent["conditions"].pop(index)
             self.active_filters = new_filters
         yield
 
-    async def update_filter_item(self, path: List[int], field: str, value: str):
+    async def update_filter_item(self, raw_path: Any, field: str, value: str):
         """Updates a specific property of a rule at a path."""
+        path = self._flatten_path(raw_path)
+        print(
+            f"DEBUG update_filter_item CALLED: path={path} (type={type(path)}), field={field}, value={value}"
+        )
         new_filters = copy.deepcopy(self.active_filters)
         # For update_filter_item, path points to the item itself
         parent_path = path[:-1]
         index = path[-1]
         parent = self._get_group_at_path(new_filters, parent_path)
 
-        if 0 <= index < len(parent["conditions"]):
+        # Check if parent has conditions to avoid KeyError on leaf modes
+        if "conditions" in parent and 0 <= index < len(parent["conditions"]):
             # If changing the column, auto-select a compatible default operator based on the data type
             if field == "column":
                 col_type = self.column_types.get(value, "string")
@@ -477,8 +502,9 @@ class JoinState(FilterState):
             self.active_filters = new_filters
         yield
 
-    async def set_filter_logic(self, path: List[int], val: str):
+    async def set_filter_logic(self, raw_path: Any, val: str):
         """Sets the logic (AND/OR) for a group at a path."""
+        path = self._flatten_path(raw_path)
         new_filters = copy.deepcopy(self.active_filters)
         target = self._get_group_at_path(new_filters, path)
         target["logic"] = "OR" if val in ["Match ANY", "OR"] else "AND"

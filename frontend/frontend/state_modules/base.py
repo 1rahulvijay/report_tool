@@ -194,8 +194,12 @@ class BaseState(rx.State):
         if not value or value == self.partition_load_type:
             return
         self.partition_load_type = value
+
         # Reset the specific load id selection so we default to the newest of the new type
-        if self.partition_info.get("max_value") is not None:
+        v_map = self.partition_info.get("available_values_map")
+        if v_map and value in v_map and v_map[value]:
+            self.selected_partitions = {self.selected_dataset: [v_map[value][0]]}
+        elif self.partition_info.get("max_value") is not None:
             self.selected_partitions = {
                 self.selected_dataset: [self.partition_info["max_value"]]
             }
@@ -213,6 +217,12 @@ class BaseState(rx.State):
     @rx.var
     def partition_available_values(self) -> List[str]:
         """Returns available partition values as strings for the dropdown."""
+        v_map = self.partition_info.get("available_values_map")
+        if v_map and self.partition_load_type:
+            vals = v_map.get(self.partition_load_type, [])
+            if vals:
+                return [str(v) for v in vals]
+
         vals = self.partition_info.get("available_values", [])
         return [str(v) for v in vals]
 

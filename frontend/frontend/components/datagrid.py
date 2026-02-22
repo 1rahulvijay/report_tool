@@ -65,7 +65,7 @@ def datagrid() -> rx.Component:
                         class_name="flex items-center gap-2 mb-1",
                     ),
                     rx.text(
-                        "Enterprise Data Management & Real-time Analytics",
+                        "Enterprise Data Management & Analytics",
                         class_name="text-xs text-slate-400 font-medium",
                     ),
                 ),
@@ -177,7 +177,7 @@ def datagrid() -> rx.Component:
                     ),
                     class_name="flex items-center gap-3",
                 ),
-                class_name="flex items-center justify-between mb-8",
+                class_name="flex items-center justify-between mb-2",
             ),
             # Filter Action Bar
             rx.box(
@@ -261,7 +261,7 @@ def datagrid() -> rx.Component:
                 ),
                 class_name="flex items-center justify-between gap-10",
             ),
-            class_name="px-8 pt-8 pb-6 shrink-0 border-b border-slate-100 dark:border-slate-800/50",
+            class_name="px-3 pt-0 pb-1 shrink-0 border-b border-slate-100 dark:border-slate-800/50",
         ),
         # Inject modals
         filter_modal(),
@@ -349,7 +349,7 @@ def datagrid() -> rx.Component:
                     class_name="w-full text-left border-collapse min-w-[1000px]",
                 ),
             ),
-            class_name="flex-1 overflow-auto custom-scrollbar px-8 min-h-0",
+            class_name="flex-1 overflow-auto custom-scrollbar px-3 min-h-0",
         ),
         # Pagination Footer (Hidden in Virtual Mode)
         rx.cond(
@@ -439,7 +439,7 @@ def datagrid() -> rx.Component:
                     ),
                     class_name="flex items-center gap-6",
                 ),
-                class_name="h-16 px-8 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between bg-white dark:bg-[#0f172a] shrink-0 w-full",
+                class_name="h-16 px-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between bg-white dark:bg-[#0f172a] shrink-0 w-full",
             ),
         ),
         class_name="flex-1 overflow-hidden flex flex-col min-h-0 h-full w-full bg-white dark:bg-[#0f172a]",

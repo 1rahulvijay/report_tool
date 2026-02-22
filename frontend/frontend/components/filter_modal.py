@@ -284,8 +284,8 @@ def _render_nested_group(
                 lambda item, idx: rx.box(
                     rx.cond(
                         item["type"] == "group",
-                        _render_nested_group(item, path + [idx], depth + 1),
-                        _render_filter_row(item, path + [idx]),
+                        _render_nested_group(item, [path, idx], depth + 1),
+                        _render_filter_row(item, [path, idx]),
                     ),
                     width="100%",
                 ),
@@ -305,16 +305,6 @@ def _render_nested_group(
                 ),
                 on_click=AppState.add_filter_rule(path),
                 class_name="px-3 py-2 flex items-center justify-center rounded-lg text-blue-600 bg-blue-50 hover:bg-blue-100 border border-transparent hover:border-blue-200 text-sm font-medium transition-colors cursor-pointer",
-            ),
-            rx.box(
-                rx.hstack(
-                    rx.icon(tag="git-branch", size=16),
-                    rx.text("Add Group"),
-                    align="center",
-                    spacing="1",
-                ),
-                on_click=AppState.add_filter_group(path),
-                class_name="px-3 py-2 flex items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100 text-sm font-medium transition-colors border border-transparent hover:border-slate-200 cursor-pointer",
             ),
             spacing="3",
             class_name="mt-4 pl-2",

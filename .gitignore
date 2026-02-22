@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+env/
+.env
+
+# Javascript / Node
+node_modules/
+.npm
+dist/
+.next/
+
+# Reflex
+.web/
+__init__.py
+
+# IDEs
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+thumbs.db

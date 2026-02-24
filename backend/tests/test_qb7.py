@@ -1,18 +1,23 @@
 ﻿import os
 import sys
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 # Add backend dir to pythonpath
 sys.path.insert(0, os.path.abspath("c:/Users/rahul/OneDrive/Documents/Aurora/backend"))
 
-from app.services.query_builder import QueryBuilderService, SQLGenerationError
+from app.services.query_builder import (
+    QueryBuilderService,
+    SQLGenerationError,
+    ParamGenerator,
+)
 from app.schemas.query import QueryRequest, LogicalGroup, FilterCondition
 
 
 class MyQB(QueryBuilderService):
-    def _parse_logical_group_split(self, group, agg_aliases, param_counter):
+    def _parse_logical_group_split(self, group, agg_aliases, param_gen):
         if not group.conditions:
-            return "", "", {}, param_counter
+            return "", "", param_gen.params
 
         where_snippets = []
         having_snippets = []
@@ -23,7 +28,7 @@ class MyQB(QueryBuilderService):
                 item = FilterCondition(**item)
 
             if isinstance(item, FilterCondition):
-                sql, params, param_counter = self._parse_condition(item, param_counter)
+                sql = self._parse_condition(item, param_gen)
 
                 # Check if this column targets an aggregation
                 if item.column in agg_aliases:
@@ -31,16 +36,14 @@ class MyQB(QueryBuilderService):
                 else:
                     where_snippets.append(f"({sql})")
 
-                all_params.update(params)
-
             elif isinstance(item, LogicalGroup) or (
                 isinstance(item, dict) and "logic" in item
             ):
                 if isinstance(item, dict):
                     item = LogicalGroup(**item)
 
-                w_sql, h_sql, params, param_counter = self._parse_logical_group_split(
-                    item, agg_aliases, param_counter
+                w_sql, h_sql, _ = self._parse_logical_group_split(
+                    item, agg_aliases, param_gen
                 )
 
                 if w_sql and h_sql and group.logic == "OR":
@@ -53,8 +56,6 @@ class MyQB(QueryBuilderService):
                 if h_sql:
                     having_snippets.append(f"({h_sql})")
 
-                all_params.update(params)
-
         where_final = ""
         having_final = ""
 
@@ -63,7 +64,7 @@ class MyQB(QueryBuilderService):
         if having_snippets:
             having_final = f" {group.logic} ".join(having_snippets)
 
-        return where_final, having_final, all_params, param_counter
+        return where_final, having_final, param_gen.params
 
 
 qb = MyQB()
@@ -72,11 +73,12 @@ filters = LogicalGroup(
     logic="AND",
     conditions=[
         FilterCondition(column="department", operator="eq", value="Sales"),
-        FilterCondition(column="Sum", operator="gt", value=100),
+        FilterCondition(column="Sum", operator="gt", value=100, datatype="number"),
     ],
 )
 
-w, h, p, c = qb._parse_logical_group_split(filters, agg_aliases, 1)
+param_gen = ParamGenerator()
+w, h, p = qb._parse_logical_group_split(filters, agg_aliases, param_gen)
 print("WHERE:", w)
 print("HAVING:", h)
 print("PARAMS:", p)

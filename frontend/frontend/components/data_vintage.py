@@ -1,6 +1,7 @@
 """
-Data Vintage control bar — shows Load Type badge and Load ID dropdown
-for partitioned datasets. Only renders when partition_info is available.
+Data Vintage control bar — shows Load Type badge, Load ID dropdown,
+Time Column pill, Re-Fetch button, and All Partitions toggle.
+Matches the reference design: horizontal bar with labeled sections separated by dividers.
 """
 
 import reflex as rx
@@ -8,118 +9,231 @@ from frontend.state import AppState
 
 
 def data_vintage_bar() -> rx.Component:
-    """Compact control bar for partition selection, rendered above the datagrid."""
-    return rx.cond(
-        AppState.has_partition_info,
-        rx.box(
-            # Left: Icon + Label
-            rx.hstack(
-                rx.icon(
-                    tag="calendar",
-                    size=16,
-                    class_name="text-slate-500",
+    """Relocated control bar: Data Vintage (left) and Action Buttons (right)."""
+    return rx.box(
+        rx.hstack(
+            # LEFT SIDE: Data Vintage Controls (Conditional)
+            rx.cond(
+                AppState.has_partition_info,
+                rx.box(
+                    rx.hstack(
+                        # Load Type section
+                        rx.cond(
+                            AppState.has_load_type
+                            & (AppState.partition_load_type != ""),
+                            rx.hstack(
+                                rx.text(
+                                    "LOAD TYPE:",
+                                    class_name="text-[11px] font-bold text-slate-500 uppercase tracking-wide whitespace-nowrap",
+                                ),
+                                rx.select(
+                                    AppState.partition_supported_types,
+                                    value=AppState.partition_load_type,
+                                    on_change=AppState.set_partition_load_type,
+                                    class_name="px-3 py-1 bg-amber-50 text-amber-700 border border-amber-200 font-bold text-[11px] rounded-full uppercase tracking-wide cursor-pointer focus:ring-0 min-w-[90px]",
+                                    size="1",
+                                ),
+                                class_name="flex items-center gap-2 shrink-0",
+                            ),
+                        ),
+                        # Divider
+                        rx.cond(
+                            AppState.has_load_type
+                            & (AppState.partition_load_type != ""),
+                            rx.box(class_name="w-px h-5 bg-slate-200 mx-2 shrink-0"),
+                        ),
+                        # Load ID section
+                        rx.cond(
+                            AppState.has_load_id,
+                            rx.hstack(
+                                rx.text(
+                                    "LOAD ID:",
+                                    class_name="text-[11px] font-bold text-slate-500 uppercase tracking-wide whitespace-nowrap",
+                                ),
+                                rx.select(
+                                    AppState.partition_available_values,
+                                    value=AppState.current_load_id_display,
+                                    on_change=AppState.set_current_load_id,
+                                    class_name="text-[11px] font-semibold min-w-[180px] bg-white border border-slate-200 rounded-md py-1",
+                                    size="1",
+                                ),
+                                rx.cond(
+                                    AppState.is_loading,
+                                    rx.icon(
+                                        tag="loader-circle",
+                                        size=14,
+                                        class_name="animate-spin text-primary",
+                                    ),
+                                ),
+                                class_name="flex items-center gap-2 shrink-0",
+                            ),
+                        ),
+                        # Divider
+                        rx.cond(
+                            AppState.has_load_id,
+                            rx.box(class_name="w-px h-5 bg-slate-200 mx-2 shrink-0"),
+                        ),
+                        # Time Column pill
+                        rx.cond(
+                            AppState.has_date_column,
+                            rx.hstack(
+                                rx.text(
+                                    "TIME COLUMN:",
+                                    class_name="text-[11px] font-bold text-slate-500 uppercase tracking-wide whitespace-nowrap",
+                                ),
+                                rx.box(
+                                    AppState.partition_column_name,
+                                    class_name="px-3 py-0.5 bg-slate-100 text-slate-600 border border-slate-200 font-bold text-[11px] rounded-md uppercase tracking-wide",
+                                ),
+                                class_name="flex items-center gap-2 shrink-0",
+                            ),
+                        ),
+                        # Divider
+                        rx.cond(
+                            AppState.has_date_column,
+                            rx.box(class_name="w-px h-5 bg-slate-200 mx-2 shrink-0"),
+                        ),
+                        # Re-fetch button
+                        rx.cond(
+                            AppState.has_load_id,
+                            rx.button(
+                                rx.icon(tag="refresh-cw", size=14),
+                                "RE-FETCH",
+                                on_click=lambda: AppState.execute_query(force=True),
+                                class_name="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold text-slate-500 bg-white border border-slate-200 rounded-md hover:bg-slate-50 transition-colors cursor-pointer",
+                            ),
+                        ),
+                        # Divider before partition toggle
+                        rx.cond(
+                            AppState.has_load_id,
+                            rx.box(class_name="w-px h-5 bg-slate-200 mx-2 shrink-0"),
+                        ),
+                        # Unrestricted Toggle Button
+                        rx.cond(
+                            AppState.has_load_id,
+                            rx.cond(
+                                AppState.partition_unrestricted,
+                                rx.button(
+                                    rx.icon(tag="lock-open", size=14),
+                                    "ALL PARTITIONS",
+                                    on_click=AppState.toggle_partition_unrestricted,
+                                    class_name="px-3 py-1.5 bg-orange-50 text-orange-600 border border-orange-200 rounded-md text-[11px] font-bold flex items-center gap-1.5 cursor-pointer hover:bg-orange-100 transition-colors",
+                                ),
+                                rx.button(
+                                    rx.icon(tag="lock", size=14),
+                                    "ALL PARTITIONS",
+                                    on_click=AppState.toggle_partition_unrestricted,
+                                    class_name="px-3 py-1.5 bg-emerald-50 text-emerald-600 border border-emerald-200 rounded-md text-[11px] font-bold flex items-center gap-1.5 cursor-pointer hover:bg-emerald-100 transition-colors",
+                                ),
+                            ),
+                        ),
+                        class_name="flex items-center gap-2 overflow-x-auto custom-scrollbar flex-1",
+                    ),
                 ),
-                rx.text(
-                    "DATA VINTAGE",
-                    class_name="text-xs font-bold text-slate-500 uppercase tracking-wider",
-                ),
-                class_name="flex items-center gap-2",
+                rx.fragment(),
             ),
-            # Center Control group
+            # RIGHT SIDE: Relocated Action Buttons (Always Visible)
             rx.hstack(
-                # Load Type (Blue Pill Dropdown) - conditionally render only if it exists
+                # In-Memory Toggle
                 rx.cond(
-                    AppState.has_load_type & (AppState.partition_load_type != ""),
-                    rx.box(
-                        rx.hstack(
-                            rx.text(
-                                "LOAD TYPE",
-                                class_name="text-[10px] font-bold text-slate-400 uppercase",
-                            ),
-                            rx.select(
-                                AppState.partition_supported_types,
-                                value=AppState.partition_load_type,
-                                on_change=AppState.set_partition_load_type,
-                                class_name="px-3 py-1 bg-blue-50 text-blue-600 border border-blue-200 font-semibold text-xs rounded-full uppercase tracking-wide cursor-pointer focus:ring-0",
-                            ),
-                            class_name="flex items-center gap-2",
+                    AppState.use_oracle_in_memory,
+                    rx.button(
+                        rx.icon(tag="zap", size=14),
+                        "In-Memory",
+                        on_click=AppState.toggle_oracle_in_memory,
+                        class_name="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold text-blue-600 bg-blue-50 border border-blue-200 rounded-lg cursor-pointer hover:bg-blue-100 transition-colors",
+                    ),
+                    rx.button(
+                        rx.icon(tag="zap-off", size=14),
+                        "In-Memory",
+                        on_click=AppState.toggle_oracle_in_memory,
+                        class_name="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold text-slate-500 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-100 transition-colors",
+                    ),
+                ),
+                # Virtual Scroll Toggle
+                rx.cond(
+                    AppState.is_virtual_scroll,
+                    rx.button(
+                        rx.icon(tag="layers", size=14),
+                        "Virtual",
+                        on_click=AppState.toggle_virtual_scroll,
+                        class_name="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-lg cursor-pointer hover:bg-emerald-100 transition-colors",
+                    ),
+                    rx.button(
+                        rx.icon(tag="table-2", size=14),
+                        "Paginated",
+                        on_click=AppState.toggle_virtual_scroll,
+                        class_name="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold text-slate-500 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-100 transition-colors",
+                    ),
+                ),
+                # Clear/Reset Buttons (Relocated)
+                rx.cond(
+                    AppState.has_active_filters
+                    | (AppState.joins.length() > 0)
+                    | (AppState.aggregations.length() > 0),
+                    rx.hstack(
+                        rx.box(class_name="h-4 w-px bg-slate-200 mx-1"),
+                        rx.button(
+                            rx.icon(tag="rotate-ccw", size=14),
+                            "RESET",
+                            on_click=AppState.reset_all,
+                            class_name="flex items-center gap-1 px-2 py-1 text-[10px] font-black text-red-500 hover:bg-red-50 border border-transparent rounded transition-colors cursor-pointer uppercase tracking-tighter",
+                        ),
+                        spacing="1",
+                        align="center",
+                    ),
+                ),
+                # Export Menu
+                rx.menu.root(
+                    rx.menu.trigger(
+                        rx.button(
+                            rx.icon(tag="download", size=14),
+                            "Export",
+                            class_name="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold text-slate-700 bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 rounded-lg cursor-pointer border-none hover:bg-slate-800 transition-colors",
                         )
                     ),
-                ),
-                rx.cond(
-                    AppState.has_load_type & (AppState.partition_load_type != ""),
-                    rx.box(class_name="w-px h-6 bg-slate-200 mx-1"),
-                ),
-                # Load ID Dropdown
-                rx.cond(
-                    AppState.has_load_id,
-                    rx.hstack(
-                        rx.text(
-                            "LOAD ID",
-                            class_name="text-[10px] font-bold text-slate-400 uppercase",
-                        ),
-                        rx.select(
-                            AppState.partition_available_values,
-                            value=AppState.current_load_id_display,
-                            on_change=AppState.set_current_load_id,
-                            class_name="text-xs font-semibold min-w-[140px] bg-white border border-slate-200 rounded-md py-1",
-                            size="1",
-                        ),
-                        rx.cond(
-                            AppState.is_loading,
-                            rx.icon(
-                                tag="loader-circle",
-                                size=14,
-                                class_name="animate-spin text-primary",
+                    rx.menu.content(
+                        rx.menu.item(
+                            "Export as Excel (.xlsx)",
+                            on_click=AppState.export_excel,
+                            class_name=rx.cond(
+                                AppState.can_export_excel,
+                                "cursor-pointer",
+                                "cursor-not-allowed text-slate-400",
                             ),
                         ),
-                        class_name="flex items-center gap-2",
+                        rx.menu.item(
+                            "Export as CSV (.csv)",
+                            on_click=AppState.export_csv,
+                            class_name="cursor-pointer",
+                        ),
                     ),
                 ),
+                # Export Progress
                 rx.cond(
-                    AppState.has_load_id,
-                    rx.box(class_name="w-px h-6 bg-slate-200 mx-1"),
-                ),
-                # Column Name (Gray text + Pill)
-                rx.cond(
-                    AppState.has_date_column,
-                    rx.hstack(
+                    AppState.is_exporting,
+                    rx.box(
+                        rx.icon(
+                            tag="loader",
+                            class_name="animate-spin text-primary",
+                            size=14,
+                        ),
                         rx.text(
-                            "COLUMN",
-                            class_name="text-[10px] font-bold text-slate-400 uppercase",
+                            rx.cond(
+                                AppState.export_status != "",
+                                f"{AppState.export_progress}%",
+                                "Preparing...",
+                            ),
+                            class_name="text-[11px] font-bold text-slate-600",
                         ),
-                        rx.box(
-                            AppState.partition_column_name,
-                            class_name="px-3 py-1 bg-slate-100 text-slate-600 border border-slate-200 font-semibold text-[11px] rounded-md uppercase tracking-wide",
-                        ),
-                        class_name="flex items-center gap-2",
+                        class_name="flex items-center gap-2 px-2 py-1.5 bg-blue-50/50 border border-blue-100 rounded-lg",
                     ),
                 ),
-                rx.cond(
-                    AppState.has_date_column,
-                    rx.box(class_name="w-px h-6 bg-slate-200 mx-1"),
-                ),
-                # Unrestricted Toggle Button
-                rx.cond(
-                    AppState.has_load_id,
-                    rx.cond(
-                        AppState.partition_unrestricted,
-                        rx.button(
-                            rx.icon(tag="lock-open", size=14),
-                            "ALL PARTITIONS",
-                            on_click=AppState.toggle_partition_unrestricted,
-                            class_name="px-3 py-1.5 bg-orange-50 text-orange-600 border border-orange-200 rounded-md text-xs font-bold flex items-center gap-2 cursor-pointer hover:bg-orange-100 transition-colors shadow-sm",
-                        ),
-                        rx.button(
-                            rx.icon(tag="lock", size=14),
-                            "FILTERED",
-                            on_click=AppState.toggle_partition_unrestricted,
-                            class_name="px-3 py-1.5 bg-emerald-50 text-emerald-600 border border-emerald-200 rounded-md text-xs font-bold flex items-center gap-2 cursor-pointer hover:bg-emerald-100 transition-colors shadow-sm",
-                        ),
-                    ),
-                ),
-                class_name="flex items-center gap-4",
+                class_name="flex items-center gap-2 shrink-0 ml-4",
             ),
-            class_name="bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between w-full shadow-sm",
+            justify="between",
+            align="center",
+            width="100%",
         ),
+        class_name="bg-white border-b border-slate-200 px-4 py-2 flex items-center w-full shrink-0",
     )

@@ -59,12 +59,23 @@ def _load_config() -> Dict[str, Dict[str, Any]]:
 
 
 def get_partition_config(dataset: str) -> Optional[Dict[str, Any]]:
-    """Returns partition config for a dataset, or None if not partitioned."""
+    """Returns partition config for a dataset, or None if not partitioned.
+    Supports schema-qualified names (e.g. 'MGBCM.REAL_DATA_1').
+    Falls back to table-name-only if full qualified name not found.
+    """
     config_map = _load_config()
-    return config_map.get(dataset.lower())
+    key = dataset.lower()
+    # 1. Try exact match (e.g. 'mgbcm.real_data_1')
+    if key in config_map:
+        return config_map[key]
+    # 2. Fallback: strip schema prefix and try table-name only
+    if "." in key:
+        table_only = key.split(".", 1)[1]
+        if table_only in config_map:
+            return config_map[table_only]
+    return None
 
 
 def is_partitioned(dataset: str) -> bool:
     """Quick check if a dataset has partition configuration."""
-    config_map = _load_config()
-    return dataset.lower() in config_map
+    return get_partition_config(dataset) is not None

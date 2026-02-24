@@ -11,7 +11,8 @@ Prerequisites:
 
 import os
 import sys
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 import io
 import pytest
 
@@ -52,8 +53,16 @@ def qb():
 
 
 def _execute(qb, db, request):
+    import oracledb
+
     sql, params = qb.build_query(request)
-    return db.execute_query(sql, params), sql, params
+    try:
+        return db.execute_query(sql, params), sql, params
+    except oracledb.DatabaseError as e:
+        error_msg = str(e)
+        if "ORA-00942" in error_msg:
+            pytest.skip(f"Mock table missing in current Oracle Database: {error_msg}")
+        raise
 
 
 # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•

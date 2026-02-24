@@ -27,7 +27,7 @@ def _render_row(row_data: list) -> rx.Component:
 
 
 def _render_header(col_name: str) -> rx.Component:
-    """Renders a column header cell representing the HTML sortable columns."""
+    """Renders a column header cell — table_headers already provides display-ready names."""
     return rx.table.column_header_cell(
         rx.box(
             rx.text(col_name),
@@ -45,230 +45,78 @@ def _render_header(col_name: str) -> rx.Component:
 def datagrid() -> rx.Component:
     """The main dynamic workspace table reflecting the provided layout."""
     return rx.box(
-        # Top Action Bar
+        # Top Action Bar — Row 1: Global Search + Action Buttons
         rx.box(
+            # Search Bar
             rx.box(
                 rx.box(
-                    rx.box(
-                        rx.icon(
-                            tag="database",
-                            class_name="text-slate-400 text-lg",
-                        ),
-                        rx.heading(
-                            rx.cond(
-                                AppState.selected_dataset == "",
-                                "No Dataset",
-                                AppState.selected_dataset,
-                            ),
-                            class_name="text-xl font-bold tracking-tight text-slate-900 dark:text-white uppercase",
-                        ),
-                        class_name="flex items-center gap-2 mb-1",
-                    ),
+                    rx.icon(tag="search", size=18, class_name="text-slate-400"),
+                    class_name="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none",
+                ),
+                rx.input(
+                    placeholder="Global search filters...",
+                    value=AppState.search_value_text,
+                    on_change=AppState.set_search_value_text,
+                    class_name="block w-full pl-11 pr-16 py-2.5 bg-slate-50 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 focus:border-primary/50 rounded-xl text-sm focus:ring-4 focus:ring-primary/5 shadow-inner transition-all placeholder:text-slate-400 placeholder:font-medium outline-none",
+                ),
+                rx.box(
                     rx.text(
-                        "Enterprise Data Management & Analytics",
-                        class_name="text-xs text-slate-400 font-medium",
+                        "⌘F",
+                        class_name="hidden sm:inline-block px-1.5 py-0.5 text-[10px] font-bold text-slate-400 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded shadow-sm",
                     ),
+                    class_name="absolute inset-y-0 right-0 flex items-center pr-3",
                 ),
-                rx.box(
-                    rx.cond(
-                        AppState.use_oracle_in_memory,
-                        rx.button(
-                            rx.box(
-                                rx.icon(tag="zap", size=14, class_name="font-bold"),
-                                class_name="flex items-center justify-center w-6 h-6 rounded-full bg-blue-500 text-white shadow-lg shadow-blue-500/40",
-                            ),
-                            rx.box(
-                                rx.text(
-                                    "In-Memory",
-                                    class_name="text-[10px] font-bold text-slate-900 dark:text-white uppercase tracking-wider",
-                                ),
-                                rx.text(
-                                    "ACTIVE",
-                                    class_name="text-[9px] text-blue-500 font-semibold",
-                                ),
-                                class_name="flex flex-col items-start leading-none",
-                            ),
-                            on_click=AppState.toggle_oracle_in_memory,
-                            class_name="flex items-center gap-2.5 px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-full in-memory-active transition-all group cursor-pointer",
-                        ),
-                        rx.button(
-                            rx.box(
-                                rx.icon(tag="zap-off", size=14, class_name="font-bold"),
-                                class_name="flex items-center justify-center w-6 h-6 rounded-full bg-slate-400 text-white shadow-lg",
-                            ),
-                            rx.box(
-                                rx.text(
-                                    "In-Memory",
-                                    class_name="text-[10px] font-bold text-slate-900 dark:text-white uppercase tracking-wider",
-                                ),
-                                rx.text(
-                                    "INACTIVE",
-                                    class_name="text-[9px] text-slate-500 font-semibold",
-                                ),
-                                class_name="flex flex-col items-start leading-none",
-                            ),
-                            on_click=AppState.toggle_oracle_in_memory,
-                            class_name="flex items-center gap-2.5 px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-full transition-all group cursor-pointer",
-                        ),
-                    ),
-                    rx.box(class_name="h-8 w-px bg-slate-200 dark:bg-slate-800 mx-1"),
-                    rx.cond(
-                        AppState.is_virtual_scroll,
-                        rx.button(
-                            rx.icon(tag="layers", size=18),
-                            "Virtual",
-                            on_click=AppState.toggle_virtual_scroll,
-                            class_name="px-3.5 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors flex items-center gap-2 cursor-pointer",
-                        ),
-                        rx.button(
-                            rx.icon(tag="layers", size=18),
-                            "Paginated",
-                            on_click=AppState.toggle_virtual_scroll,
-                            class_name="px-3.5 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors flex items-center gap-2 cursor-pointer",
-                        ),
-                    ),
-                    rx.menu.root(
-                        rx.menu.trigger(
-                            rx.button(
-                                rx.icon(tag="download", size=18),
-                                "Export",
-                                class_name="px-3.5 py-2 bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 text-xs font-bold rounded-lg hover:bg-slate-800 dark:hover:bg-white transition-colors flex items-center gap-2 shadow-sm cursor-pointer border-none",
-                            )
-                        ),
-                        rx.menu.content(
-                            rx.menu.item(
-                                "Export as Excel (.xlsx)",
-                                on_click=AppState.export_excel,
-                                class_name=rx.cond(
-                                    AppState.can_export_excel,
-                                    "cursor-pointer",
-                                    "cursor-not-allowed text-slate-400",
-                                ),
-                            ),
-                            rx.menu.item(
-                                "Export as CSV (.csv)",
-                                on_click=AppState.export_csv,
-                                class_name="cursor-pointer",
-                            ),
-                        ),
-                    ),
-                    rx.cond(
-                        AppState.is_exporting,
-                        rx.box(
-                            rx.icon(
-                                tag="loader",
-                                class_name="animate-spin text-primary",
-                                size=16,
-                            ),
-                            rx.text(
-                                rx.cond(
-                                    AppState.export_status != "",
-                                    f"Exporting... {AppState.export_progress}%",
-                                    "Preparing export...",
-                                ),
-                                class_name="text-xs font-bold text-slate-700 dark:text-slate-300",
-                            ),
-                            class_name="flex items-center gap-2 px-3.5 py-2 bg-blue-50/50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-lg shadow-sm",
-                        ),
-                    ),
-                    rx.button(
-                        rx.icon(tag="ellipsis-vertical", size=20),
-                        class_name="p-2 text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg transition-all bg-transparent border-none cursor-pointer",
-                    ),
-                    class_name="flex items-center gap-3",
-                ),
-                class_name="flex items-center justify-between mb-2",
+                class_name="relative flex-1 max-w-xl",
             ),
-            # Filter Action Bar
+            # Action Buttons: JOIN | FILTERS | BUILDER
             rx.box(
-                rx.box(
-                    rx.box(
-                        rx.icon(tag="search", size=18, class_name="text-slate-400"),
-                        class_name="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none",
-                    ),
-                    rx.input(
-                        placeholder="Global search filters...",
-                        value=AppState.search_value_text,
-                        on_change=AppState.set_search_value_text,
-                        class_name="block w-full pl-11 pr-16 py-2.5 bg-slate-50 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 focus:border-primary/50 rounded-xl text-sm focus:ring-4 focus:ring-primary/5 shadow-inner transition-all placeholder:text-slate-400 placeholder:font-medium outline-none",
-                    ),
-                    rx.box(
-                        rx.text(
-                            "⌘F",
-                            class_name="hidden sm:inline-block px-1.5 py-0.5 text-[10px] font-bold text-slate-400 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded shadow-sm",
-                        ),
-                        class_name="absolute inset-y-0 right-0 flex items-center pr-3",
-                    ),
-                    class_name="relative flex-1 max-w-xl",
+                rx.button(
+                    rx.icon(tag="link", size=16, class_name="text-slate-500"),
+                    "JOIN",
+                    on_click=AppState.toggle_join_modal,
+                    class_name="flex items-center gap-2 text-xs font-bold text-slate-600 hover:text-primary transition-colors bg-transparent border-none cursor-pointer tracking-wider uppercase",
                 ),
-                rx.box(
-                    rx.button(
-                        rx.icon(
-                            tag="git-pull-request", size=18, class_name="text-slate-400"
-                        ),
-                        "Join Datasets",
-                        on_click=AppState.toggle_join_modal,
-                        class_name="flex items-center gap-2 text-xs font-bold text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors bg-transparent border-none cursor-pointer",
-                    ),
-                    rx.button(
-                        rx.icon(tag="filter", size=18, class_name="text-slate-400"),
-                        "Filters",
-                        on_click=AppState.toggle_filter_modal,
-                        class_name="flex items-center gap-2 text-xs font-bold text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors bg-transparent border-none cursor-pointer",
-                    ),
-                    rx.button(
-                        rx.icon(tag="layers", size=18, class_name="text-slate-400"),
-                        "Aggregation Builder",
-                        on_click=AppState.toggle_aggregation_modal,
-                        class_name="flex items-center gap-2 text-xs font-bold text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors bg-transparent border-none cursor-pointer",
-                    ),
-                    rx.cond(
-                        AppState.has_active_filters,
-                        rx.button(
-                            "Clear Filters",
-                            on_click=AppState.clear_filters,
-                            class_name="flex items-center gap-2 text-xs font-bold text-red-400 hover:text-red-500 transition-colors bg-transparent border-none cursor-pointer",
-                        ),
-                    ),
-                    rx.cond(
-                        AppState.joins.length() > 0,
-                        rx.button(
-                            "Clear Joins",
-                            on_click=AppState.reset_joins,
-                            class_name="flex items-center gap-2 text-xs font-bold text-red-400 hover:text-red-500 transition-colors bg-transparent border-none cursor-pointer",
-                        ),
-                    ),
-                    rx.cond(
-                        AppState.aggregations.length() > 0,
-                        rx.button(
-                            "Clear Aggregations",
-                            on_click=AppState.clear_aggregations,
-                            class_name="flex items-center gap-2 text-xs font-bold text-red-400 hover:text-red-500 transition-colors bg-transparent border-none cursor-pointer",
-                        ),
-                    ),
-                    rx.cond(
-                        AppState.has_active_filters
-                        | (AppState.joins.length() > 0)
-                        | (AppState.aggregations.length() > 0),
-                        rx.button(
-                            rx.icon(tag="x", size=18, class_name="text-red-500"),
-                            "Reset All",
-                            on_click=AppState.reset_all,
-                            class_name="flex items-center gap-2 text-xs font-bold text-red-500 hover:text-red-600 transition-colors bg-transparent border-none cursor-pointer ml-3 border-l pl-3 border-slate-200 dark:border-slate-800",
-                        ),
-                    ),
-                    class_name="flex items-center gap-6 shrink-0",
+                rx.box(class_name="h-5 w-px bg-slate-200 dark:bg-slate-700"),
+                rx.button(
+                    rx.icon(tag="filter", size=16, class_name="text-slate-500"),
+                    "FILTERS",
+                    on_click=AppState.toggle_filter_modal,
+                    class_name="flex items-center gap-2 text-xs font-bold text-slate-600 hover:text-primary transition-colors bg-transparent border-none cursor-pointer tracking-wider uppercase",
                 ),
-                class_name="flex items-center justify-between gap-10",
+                rx.box(class_name="h-5 w-px bg-slate-200 dark:bg-slate-700"),
+                rx.button(
+                    rx.icon(tag="diamond", size=16, class_name="text-slate-500"),
+                    "BUILDER",
+                    on_click=AppState.toggle_aggregation_modal,
+                    class_name="flex items-center gap-2 text-xs font-bold text-slate-600 hover:text-primary transition-colors bg-transparent border-none cursor-pointer tracking-wider uppercase",
+                ),
+                class_name="flex items-center gap-5 shrink-0",
             ),
-            class_name="px-3 pt-0 pb-1 shrink-0 border-b border-slate-100 dark:border-slate-800/50",
+            class_name="flex items-center justify-between gap-10 px-4 py-2.5 border-b border-slate-100 dark:border-slate-800/50 shrink-0",
         ),
         # Inject modals
         filter_modal(),
         join_modal(),
         aggregation_modal(),
         data_vintage_bar(),
-        # The Table Area
+        # Loading spinner overlay
+        rx.cond(
+            AppState.is_loading,
+            rx.box(
+                rx.box(
+                    rx.icon(
+                        tag="loader", class_name="animate-spin text-primary", size=24
+                    ),
+                    rx.text(
+                        "Loading data...",
+                        class_name="text-sm font-bold text-slate-500 mt-2",
+                    ),
+                    class_name="flex flex-col items-center justify-center",
+                ),
+                class_name="absolute inset-0 z-20 flex items-center justify-center bg-white/70 dark:bg-slate-900/70 backdrop-blur-sm",
+            ),
+        ),
+        # The Table Area (scrollable content)
         rx.box(
             rx.cond(
                 AppState.visible_columns.length() == 0,
@@ -349,9 +197,9 @@ def datagrid() -> rx.Component:
                     class_name="w-full text-left border-collapse min-w-[1000px]",
                 ),
             ),
-            class_name="flex-1 overflow-auto custom-scrollbar px-3 min-h-0",
+            class_name="flex-1 overflow-x-auto overflow-y-auto custom-scrollbar custom-scrollbar-force-x px-3 min-h-0",
         ),
-        # Pagination Footer (Hidden in Virtual Mode)
+        # Sticky Pagination Footer
         rx.cond(
             AppState.is_virtual_scroll,
             rx.fragment(),
@@ -439,8 +287,8 @@ def datagrid() -> rx.Component:
                     ),
                     class_name="flex items-center gap-6",
                 ),
-                class_name="h-16 px-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between bg-white dark:bg-[#0f172a] shrink-0 w-full",
+                class_name="h-16 px-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between bg-white dark:bg-[#0f172a] shrink-0 w-full z-20",
             ),
         ),
-        class_name="flex-1 overflow-hidden flex flex-col min-h-0 h-full w-full bg-white dark:bg-[#0f172a]",
+        class_name="flex-1 overflow-hidden flex flex-col min-h-0 h-full w-full bg-white dark:bg-[#0f172a] relative",
     )

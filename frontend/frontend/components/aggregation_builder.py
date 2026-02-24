@@ -2,6 +2,24 @@ import reflex as rx
 from frontend.state import AppState
 
 
+def _inline_search(placeholder: str, value, on_change) -> rx.Component:
+    """Compact search input to embed inside dropdown content panes."""
+    return rx.box(
+        rx.icon(
+            tag="search",
+            size=14,
+            class_name="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400",
+        ),
+        rx.el.input(
+            placeholder=placeholder,
+            value=value,
+            on_change=on_change,
+            class_name="w-full bg-slate-50 border border-slate-200 rounded pl-8 pr-3 py-1.5 text-xs focus:ring-primary focus:border-primary outline-none",
+        ),
+        class_name="relative px-2 pt-2 pb-1",
+    )
+
+
 def _render_group_by_pill(col_name: str) -> rx.Component:
     """Renders a pill for a selected Group By column."""
     return rx.box(
@@ -27,7 +45,7 @@ def _render_group_by_pill(col_name: str) -> rx.Component:
 def _render_aggregation_row(agg: rx.Var, index: int) -> rx.Component:
     """Renders a single aggregation metric row."""
     return rx.box(
-        # Source Column
+        # Source Column — with inline search
         rx.box(
             rx.box(
                 rx.box(
@@ -50,10 +68,17 @@ def _render_aggregation_row(agg: rx.Var, index: int) -> rx.Component:
                         class_name="w-full h-10 pl-10 pr-10 text-sm bg-white border border-border-light rounded-lg text-slate-700 focus:ring-1 focus:ring-primary focus:border-primary cursor-pointer hover:border-slate-300 transition-colors truncate text-left",
                     ),
                     rx.radix.select.content(
+                        _inline_search(
+                            "Search columns...",
+                            AppState.agg_metrics_search,
+                            AppState.set_agg_metrics_search,
+                        ),
                         rx.radix.select.group(
                             rx.foreach(
-                                AppState.numeric_column_names,
-                                lambda name: rx.radix.select.item(name, value=name),
+                                AppState.filtered_all_agg_display,
+                                lambda pair: rx.radix.select.item(
+                                    pair[1], value=pair[0]
+                                ),
                             )
                         ),
                         position="popper",
@@ -81,9 +106,46 @@ def _render_aggregation_row(agg: rx.Var, index: int) -> rx.Component:
                     ),
                     rx.radix.select.content(
                         rx.radix.select.group(
-                            rx.foreach(
-                                ["sum", "avg", "count", "max", "min", "distinct_count"],
-                                lambda name: rx.radix.select.item(name, value=name),
+                            rx.match(
+                                AppState.column_type_map[agg["column"]],
+                                (
+                                    "numeric",
+                                    rx.fragment(
+                                        rx.foreach(
+                                            [
+                                                "sum",
+                                                "avg",
+                                                "count",
+                                                "max",
+                                                "min",
+                                                "distinct_count",
+                                            ],
+                                            lambda name: rx.radix.select.item(
+                                                name, value=name
+                                            ),
+                                        )
+                                    ),
+                                ),
+                                (
+                                    "date",
+                                    rx.fragment(
+                                        rx.foreach(
+                                            ["count", "max", "min", "distinct_count"],
+                                            lambda name: rx.radix.select.item(
+                                                name, value=name
+                                            ),
+                                        )
+                                    ),
+                                ),
+                                # Default (string/other)
+                                rx.fragment(
+                                    rx.foreach(
+                                        ["count", "distinct_count"],
+                                        lambda name: rx.radix.select.item(
+                                            name, value=name
+                                        ),
+                                    )
+                                ),
                             )
                         ),
                         position="popper",
@@ -198,7 +260,7 @@ def aggregation_modal() -> rx.Component:
                                 ),
                                 class_name="flex flex-wrap gap-2",
                             ),
-                            # Column Selection
+                            # Column Selection — with inline search inside dropdown
                             rx.box(
                                 rx.radix.select.root(
                                     rx.radix.select.trigger(
@@ -206,22 +268,22 @@ def aggregation_modal() -> rx.Component:
                                         class_name="w-full max-w-md h-10 pl-3 pr-8 text-sm bg-white border border-border-light rounded-lg text-slate-500 focus:ring-1 focus:ring-primary focus:border-primary cursor-pointer hover:border-slate-300 transition-colors shadow-sm text-left",
                                     ),
                                     rx.radix.select.content(
+                                        _inline_search(
+                                            "Search columns...",
+                                            AppState.agg_group_by_search,
+                                            AppState.set_agg_group_by_search,
+                                        ),
                                         rx.radix.select.group(
                                             rx.foreach(
-                                                AppState.raw_column_names,
-                                                lambda name: rx.radix.select.item(
-                                                    name, value=name
+                                                AppState.filtered_group_by_display,
+                                                lambda pair: rx.radix.select.item(
+                                                    pair[1], value=pair[0]
                                                 ),
                                             )
                                         ),
                                         position="popper",
                                     ),
                                     on_change=AppState.add_group_by_column,
-                                ),
-                                rx.icon(
-                                    tag="chevron-down",
-                                    size=18,
-                                    class_name="absolute left-[26rem] top-2.5 text-slate-400 pointer-events-none",
                                 ),
                                 class_name="relative mt-2",
                             ),
@@ -345,9 +407,9 @@ def aggregation_modal() -> rx.Component:
                     ),
                     class_name="flex flex-col border-t border-slate-200 bg-white shrink-0",
                 ),
-                class_name="relative z-50 w-[800px] max-w-[90vw] max-h-[90vh] flex flex-col bg-surface-light rounded-xl shadow-2xl border border-border-light overflow-hidden",
+                class_name="relative z-50 w-[800px] max-w-[90vw] max-h-[90vh] flex flex-col bg-white rounded-xl shadow-2xl border border-slate-200 overflow-hidden",
             ),
-            class_name="fixed inset-0 flex items-center justify-center p-4 z-50",
+            class_name="fixed inset-0 flex items-center justify-center p-4 z-50 bg-black/50 backdrop-blur-sm",
         ),
         rx.fragment(),
     )

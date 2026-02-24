@@ -40,7 +40,7 @@ def db():
 
 @pytest.fixture
 def qb():
-    return QueryBuilderService(dialect="duckdb")
+    return QueryBuilderService()
 
 
 def _execute(qb, db, request):

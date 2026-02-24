@@ -53,6 +53,32 @@ class ColumnState(BaseState):
     dataset_search_text: str = ""
     search_value_text: str = ""
 
+    # Modal Search State
+    join_table_search: str = ""
+    join_left_col_search: str = ""
+    join_right_col_search: str = ""
+    agg_group_by_search: str = ""
+    agg_metrics_search: str = ""
+    filter_col_search: str = ""
+
+    def set_join_table_search(self, text: str):
+        self.join_table_search = text
+
+    def set_join_left_col_search(self, text: str):
+        self.join_left_col_search = text
+
+    def set_join_right_col_search(self, text: str):
+        self.join_right_col_search = text
+
+    def set_agg_group_by_search(self, text: str):
+        self.agg_group_by_search = text
+
+    def set_agg_metrics_search(self, text: str):
+        self.agg_metrics_search = text
+
+    def set_filter_col_search(self, text: str):
+        self.filter_col_search = text
+
     async def clear_column_filters(self):
         """Resets the visible columns and search string."""
         self.column_search_text = ""

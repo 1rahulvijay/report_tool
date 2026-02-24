@@ -20,6 +20,8 @@ class JoinState(FilterState):
             ">",
             "<=",
             ">=",
+            "max",
+            "min",
             "between",
             "in",
             "is null",
@@ -36,8 +38,30 @@ class JoinState(FilterState):
             "is null",
             "is not null",
         ],
-        "date": ["=", "!=", "<", ">", "<=", ">=", "between", "is null", "is not null"],
+        "date": [
+            "=",
+            "!=",
+            "<",
+            ">",
+            "<=",
+            ">=",
+            "max",
+            "min",
+            "between",
+            "is null",
+            "is not null",
+        ],
     }
+
+    @staticmethod
+    def _display_name(qualified: str) -> str:
+        """Strip schema.table prefix: 'MGBCM.REAL_DATA_1.COL' -> 'COL', 'table.col' -> 'col'."""
+        return qualified.split(".")[-1] if "." in qualified else qualified
+
+    @staticmethod
+    def _display_table_name(qualified: str) -> str:
+        """Strip schema prefix: 'MGBCM.REAL_DATA_1' -> 'REAL_DATA_1'."""
+        return qualified.split(".")[-1] if "." in qualified else qualified
 
     def toggle_join_modal(self):
         """Toggles the join modal visibility."""
@@ -49,6 +73,10 @@ class JoinState(FilterState):
             self.new_join_right_dataset = ""
             self.new_join_type = "inner"
             self.new_join_conditions = [{"left_column": "", "right_column": ""}]
+            # Reset search fields
+            self.join_table_search = ""
+            self.join_left_col_search = ""
+            self.join_right_col_search = ""
         self.is_join_modal_open = not self.is_join_modal_open
 
     def add_join_condition(self):
@@ -111,6 +139,11 @@ class JoinState(FilterState):
         return sorted(list(set(cols)))
 
     @rx.var
+    def all_column_names_for_agg(self) -> List[str]:
+        """Returns ALL physical columns (any type) for distinct_count on string/text fields."""
+        return self.raw_column_names
+
+    @rx.var
     def join_anchor_datasets(self) -> List[str]:
         """Returns the list of tables already in the query that can act as join anchors."""
         if not self.selected_dataset:
@@ -138,6 +171,114 @@ class JoinState(FilterState):
             return []
         cols = self._dataset_column_cache.get(self.new_join_right_dataset, [])
         return sorted([f"{self.new_join_right_dataset}.{c['name']}" for c in cols])
+
+    # ─── Filtered Search Vars ──────────────────────────────
+
+    @rx.var
+    def filtered_join_datasets(self) -> List[str]:
+        """Filters dataset names for the join builder table search."""
+        names = sorted([ds.get("name", "") for ds in self.datasets])
+        if not self.join_table_search:
+            return names
+        s = self.join_table_search.lower()
+        return [n for n in names if s in n.lower()]
+
+    @rx.var
+    def filtered_left_col_names(self) -> List[str]:
+        """Left-side column names filtered by left column search."""
+        cols = self.left_side_column_names
+        if not self.join_left_col_search:
+            return cols
+        s = self.join_left_col_search.lower()
+        return [c for c in cols if s in c.lower()]
+
+    @rx.var
+    def filtered_right_col_names(self) -> List[str]:
+        """Right-side column names filtered by right column search."""
+        cols = self.right_side_column_names
+        if not self.join_right_col_search:
+            return cols
+        s = self.join_right_col_search.lower()
+        return [c for c in cols if s in c.lower()]
+
+    @rx.var
+    def filtered_group_by_columns(self) -> List[str]:
+        """Raw column names filtered by group-by search."""
+        cols = self.raw_column_names
+        if not self.agg_group_by_search:
+            return cols
+        s = self.agg_group_by_search.lower()
+        return [c for c in cols if s in c.lower()]
+
+    @rx.var
+    def filtered_numeric_columns(self) -> List[str]:
+        """Numeric column names filtered by metrics search."""
+        cols = self.numeric_column_names
+        if not self.agg_metrics_search:
+            return cols
+        s = self.agg_metrics_search.lower()
+        return [c for c in cols if s in c.lower()]
+
+    @rx.var
+    def filtered_all_agg_columns(self) -> List[str]:
+        """All column names filtered by metrics search (for distinct_count on any type)."""
+        cols = self.all_column_names_for_agg
+        if not self.agg_metrics_search:
+            return cols
+        s = self.agg_metrics_search.lower()
+        return [c for c in cols if s in c.lower()]
+
+    @rx.var
+    def filtered_filter_columns(self) -> List[str]:
+        """Column names filtered by filter column search."""
+        names = [c["name"] for c in self.columns]
+        if not self.filter_col_search:
+            return names
+        s = self.filter_col_search.lower()
+        return [n for n in names if s in n.lower()]
+
+    # ─── Display-Pair Vars (for component dropdowns) ─────────
+    # Each returns List[List[str]] where inner list is [full_name, display_name]
+
+    @staticmethod
+    def _to_pairs(names: list) -> list:
+        """Convert list of qualified names to [[full, display], ...]."""
+        return [[n, n.split(".")[-1] if "." in n else n] for n in names]
+
+    @rx.var
+    def join_anchor_display(self) -> List[List[str]]:
+        """Join anchor datasets as [full_name, display_name] pairs."""
+        return self._to_pairs(self.join_anchor_datasets)
+
+    @rx.var
+    def filtered_join_datasets_display(self) -> List[List[str]]:
+        """Filtered join datasets as [full_name, display_name] pairs."""
+        return self._to_pairs(self.filtered_join_datasets)
+
+    @rx.var
+    def filtered_left_col_display(self) -> List[List[str]]:
+        """Filtered left column names as [full_name, display_name] pairs."""
+        return self._to_pairs(self.filtered_left_col_names)
+
+    @rx.var
+    def filtered_right_col_display(self) -> List[List[str]]:
+        """Filtered right column names as [full_name, display_name] pairs."""
+        return self._to_pairs(self.filtered_right_col_names)
+
+    @rx.var
+    def filtered_group_by_display(self) -> List[List[str]]:
+        """Filtered group-by columns as [full_name, display_name] pairs."""
+        return self._to_pairs(self.filtered_group_by_columns)
+
+    @rx.var
+    def filtered_all_agg_display(self) -> List[List[str]]:
+        """Filtered all-agg columns as [full_name, display_name] pairs."""
+        return self._to_pairs(self.filtered_all_agg_columns)
+
+    @rx.var
+    def filtered_filter_col_display(self) -> List[List[str]]:
+        """Filtered filter columns as [full_name, display_name] pairs."""
+        return self._to_pairs(self.filtered_filter_columns)
 
     @rx.var
     def preview_column_names(self) -> List[str]:
@@ -396,6 +537,13 @@ class JoinState(FilterState):
                 new_visible.append(vcol)
         self.visible_columns = new_visible
 
+    @rx.var
+    def column_type_map(self) -> Dict[str, str]:
+        """Provides a lookup map of [qualified_name] -> base_type."""
+        cmap = {c["name"]: c.get("base_type", "string") for c in self.columns}
+        cmap[""] = "string"
+        return cmap
+
     def _flatten_path(self, raw_path: Any) -> List[int]:
         """Flattens arbitrarily nested lists of path indices received from the frontend."""
         if isinstance(raw_path, int):
@@ -499,6 +647,33 @@ class JoinState(FilterState):
             if field == "operator" and value in unary_ops:
                 parent["conditions"][index]["value"] = ""
 
+            self.active_filters = new_filters
+        yield
+
+    async def update_filter_between_date(self, raw_path: Any, part: str, value: str):
+        """Updates the start or end of a between date range value (comma-separated)."""
+        path = self._flatten_path(raw_path)
+        new_filters = copy.deepcopy(self.active_filters)
+        parent_path = path[:-1]
+        index = path[-1]
+        parent = self._get_group_at_path(new_filters, parent_path)
+
+        if "conditions" in parent and 0 <= index < len(parent["conditions"]):
+            current_value = parent["conditions"][index].get("value", "")
+            parts = (
+                current_value.split(",")
+                if "," in current_value
+                else [current_value, ""]
+            )
+            if len(parts) < 2:
+                parts.append("")
+
+            if part == "start":
+                parts[0] = value.strip()
+            else:
+                parts[1] = value.strip()
+
+            parent["conditions"][index]["value"] = f"{parts[0]},{parts[1]}"
             self.active_filters = new_filters
         yield
 

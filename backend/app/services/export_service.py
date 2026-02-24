@@ -132,7 +132,10 @@ class ExportService:
                 else:
                     cursor.execute(sql)
 
-                col_names = [desc[0] for desc in cursor.description]
+                raw_names = [desc[0] for desc in cursor.description]
+                col_names = [
+                    name.split(".")[-1] if "." in name else name for name in raw_names
+                ]
 
                 # Create workbook in constant_memory mode (writes directly to disk)
                 workbook = xlsxwriter.Workbook(
@@ -149,33 +152,105 @@ class ExportService:
                 if job.estimated_rows > 0:
                     worksheet.autofilter(0, 0, job.estimated_rows, len(col_names) - 1)
 
-                # Styles
+                # Styles — match UI: dark navy headers, white body, black text
                 header_format = workbook.add_format(
                     {
                         "bold": True,
                         "font_color": "#ffffff",
-                        "bg_color": "#1e3a8a",
+                        "bg_color": "#0f172a",
                         "border": 1,
-                        "border_color": "#1e3a8a",
+                        "border_color": "#0f172a",
                         "align": "left",
                         "valign": "vcenter",
+                        "font_size": 11,
+                        "font_name": "Calibri",
                     }
                 )
 
                 cell_format = workbook.add_format(
-                    {"border": 1, "border_color": "#e2e8f0"}
+                    {
+                        "border": 1,
+                        "border_color": "#e2e8f0",
+                        "bg_color": "#ffffff",
+                        "font_color": "#000000",
+                        "font_size": 10,
+                        "font_name": "Calibri",
+                    }
+                )
+                cell_format_alt = workbook.add_format(
+                    {
+                        "border": 1,
+                        "border_color": "#e2e8f0",
+                        "bg_color": "#f8fafc",
+                        "font_color": "#000000",
+                        "font_size": 10,
+                        "font_name": "Calibri",
+                    }
                 )
                 num_format = workbook.add_format(
-                    {"num_format": "#,##0.00", "border": 1, "border_color": "#e2e8f0"}
+                    {
+                        "num_format": "#,##0.00",
+                        "border": 1,
+                        "border_color": "#e2e8f0",
+                        "bg_color": "#ffffff",
+                        "font_color": "#000000",
+                        "font_size": 10,
+                        "font_name": "Calibri",
+                    }
+                )
+                num_format_alt = workbook.add_format(
+                    {
+                        "num_format": "#,##0.00",
+                        "border": 1,
+                        "border_color": "#e2e8f0",
+                        "bg_color": "#f8fafc",
+                        "font_color": "#000000",
+                        "font_size": 10,
+                        "font_name": "Calibri",
+                    }
                 )
                 int_format = workbook.add_format(
-                    {"num_format": "#,##0", "border": 1, "border_color": "#e2e8f0"}
+                    {
+                        "num_format": "#,##0",
+                        "border": 1,
+                        "border_color": "#e2e8f0",
+                        "bg_color": "#ffffff",
+                        "font_color": "#000000",
+                        "font_size": 10,
+                        "font_name": "Calibri",
+                    }
+                )
+                int_format_alt = workbook.add_format(
+                    {
+                        "num_format": "#,##0",
+                        "border": 1,
+                        "border_color": "#e2e8f0",
+                        "bg_color": "#f8fafc",
+                        "font_color": "#000000",
+                        "font_size": 10,
+                        "font_name": "Calibri",
+                    }
                 )
                 date_format = workbook.add_format(
                     {
                         "num_format": "yyyy-mm-dd hh:mm:ss",
                         "border": 1,
                         "border_color": "#e2e8f0",
+                        "bg_color": "#ffffff",
+                        "font_color": "#000000",
+                        "font_size": 10,
+                        "font_name": "Calibri",
+                    }
+                )
+                date_format_alt = workbook.add_format(
+                    {
+                        "num_format": "yyyy-mm-dd hh:mm:ss",
+                        "border": 1,
+                        "border_color": "#e2e8f0",
+                        "bg_color": "#f8fafc",
+                        "font_color": "#000000",
+                        "font_size": 10,
+                        "font_name": "Calibri",
                     }
                 )
 
@@ -194,37 +269,42 @@ class ExportService:
                         break
 
                     for row in rows:
+                        is_alt = row_idx % 2 == 0
                         for col_idx, value in enumerate(row):
+                            cf = cell_format_alt if is_alt else cell_format
                             # Handle special types
                             if value is None:
-                                worksheet.write_blank(row_idx, col_idx, "", cell_format)
+                                worksheet.write_blank(row_idx, col_idx, "", cf)
                             elif hasattr(value, "isoformat"):
                                 worksheet.write_datetime(
-                                    row_idx, col_idx, value, date_format
+                                    row_idx,
+                                    col_idx,
+                                    value,
+                                    date_format_alt if is_alt else date_format,
                                 )
                             elif isinstance(value, bool):  # Put bool check before int
-                                worksheet.write_boolean(
-                                    row_idx, col_idx, value, cell_format
-                                )
+                                worksheet.write_boolean(row_idx, col_idx, value, cf)
                             elif isinstance(value, int):
                                 worksheet.write_number(
-                                    row_idx, col_idx, value, int_format
+                                    row_idx,
+                                    col_idx,
+                                    value,
+                                    int_format_alt if is_alt else int_format,
                                 )
                             elif isinstance(value, float):
                                 import math
 
                                 if math.isnan(value) or math.isinf(value):
-                                    worksheet.write_blank(
-                                        row_idx, col_idx, "", cell_format
-                                    )
+                                    worksheet.write_blank(row_idx, col_idx, "", cf)
                                 else:
                                     worksheet.write_number(
-                                        row_idx, col_idx, value, num_format
+                                        row_idx,
+                                        col_idx,
+                                        value,
+                                        num_format_alt if is_alt else num_format,
                                     )
                             else:
-                                worksheet.write_string(
-                                    row_idx, col_idx, str(value), cell_format
-                                )
+                                worksheet.write_string(row_idx, col_idx, str(value), cf)
                         row_idx += 1
 
                     total_written += len(rows)

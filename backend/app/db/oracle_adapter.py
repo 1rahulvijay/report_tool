@@ -16,6 +16,7 @@ class OracleAdapter(BaseDatabaseAdapter):
     def __init__(
         self, user: str, password: str, dsn: str, min_pool: int = 5, max_pool: int = 20
     ):
+        self._user = user.upper()
         self.pool = oracledb.create_pool(
             user=user,
             password=password,
@@ -27,6 +28,21 @@ class OracleAdapter(BaseDatabaseAdapter):
         )
         self._cache = {}
         self._cache_ttl = 3600  # 1 hour
+
+    def _parse_dataset_name(self, dataset_name: str):
+        """
+        Splits a potentially schema-qualified dataset name into (owner, table).
+        'MGBCM.REAL_DATA_1' -> ('MGBCM', 'REAL_DATA_1')
+        'employee_roster'   -> (self._user, 'EMPLOYEE_ROSTER')
+        """
+        if "." in dataset_name:
+            parts = dataset_name.split(".", 1)
+            return parts[0].upper(), parts[1].upper()
+        return self._user, dataset_name.upper()
+
+    def _qualified_table(self, owner: str, table: str) -> str:
+        """Returns a quoted schema-qualified table reference: \"OWNER\".\"TABLE\"."""
+        return f'"{owner}"."{table}"'
 
     @contextlib.contextmanager
     def connection(self):
@@ -40,11 +56,6 @@ class OracleAdapter(BaseDatabaseAdapter):
             try:
                 # Add wait_timeout to fail fast if pool is exhausted
                 conn = self.pool.acquire()  # 5 seconds wait
-                try:
-                    yield conn
-                finally:
-                    self.pool.release(conn)
-                return
             except oracledb.DatabaseError as e:
                 # ORA-24459 or similar pool exhaustion errors
                 if attempt < max_retries - 1:
@@ -54,9 +65,18 @@ class OracleAdapter(BaseDatabaseAdapter):
                     "Database connection pool exhausted. Please try again in a moment."
                 ) from e
 
+            # Yield connection and release it properly. Exceptions occurring inside
+            # the yield (query execution) will propagate through seamlessly.
+            try:
+                yield conn
+            finally:
+                self.pool.release(conn)
+            return
+
     def get_datasets(self) -> List[Dict[str, Any]]:
         """
-        Dynamically discover available tables and views in the current schema.
+        Dynamically discover available tables and views across schemas.
+        Returns dataset names in OWNER.TABLE_NAME format for multi-schema support.
         Includes row counts from NUM_ROWS (approximate for speed).
         """
         import time
@@ -74,9 +94,24 @@ class OracleAdapter(BaseDatabaseAdapter):
         view_filter = ""
         params = {}
         if settings.ORACLE_SCHEMA_FILTER:
-            table_filter = "WHERE owner = :owner"
-            view_filter = "WHERE owner = :owner"
-            params["owner"] = settings.ORACLE_SCHEMA_FILTER.upper()
+            # Support comma-separated schema list: "AURORA_APP,MGBCM,MGLOBE"
+            schemas = [
+                s.strip().upper()
+                for s in settings.ORACLE_SCHEMA_FILTER.split(",")
+                if s.strip()
+            ]
+            if len(schemas) == 1:
+                table_filter = "WHERE owner = :owner_0"
+                view_filter = "WHERE owner = :owner_0"
+                params["owner_0"] = schemas[0]
+            else:
+                owner_placeholders = ", ".join(
+                    f":owner_{i}" for i in range(len(schemas))
+                )
+                for i, s in enumerate(schemas):
+                    params[f"owner_{i}"] = s
+                table_filter = f"WHERE owner IN ({owner_placeholders})"
+                view_filter = f"WHERE owner IN ({owner_placeholders})"
         else:
             sys_owners = "('SYS', 'SYSTEM', 'XDB', 'CTXSYS', 'MDSYS', 'ORDSYS', 'OUTLN', 'WMSYS', 'APPQOSSYS', 'DBSNMP', 'OJVMSYS', 'DVSYS', 'LBACSYS', 'AUDSYS', 'GSMADMIN_INTERNAL', 'ORACLE_OCM', 'PUBLIC', 'SYSMAN', 'EXFSYS', 'DIP', 'ANONYMOUS', 'XS$NULL', 'OACSYS')"
             table_filter = f"WHERE owner NOT IN {sys_owners} AND table_name NOT LIKE 'ALL$%' AND table_name NOT LIKE 'ALL\\_%' ESCAPE '\\' AND table_name NOT LIKE 'DBA\\_%' ESCAPE '\\' AND table_name NOT LIKE 'USER\\_%' ESCAPE '\\'"
@@ -84,14 +119,14 @@ class OracleAdapter(BaseDatabaseAdapter):
 
         query = f"""
             SELECT 
-                table_name as name, 
+                owner || '.' || table_name as name, 
                 'TABLE' as type,
                 num_rows
             FROM all_tables
             {table_filter}
             UNION ALL
             SELECT 
-                view_name as name, 
+                owner || '.' || view_name as name, 
                 'VIEW' as type,
                 0 as num_rows
             FROM all_views
@@ -118,10 +153,12 @@ class OracleAdapter(BaseDatabaseAdapter):
     def get_table_metadata(self, dataset_name: str) -> List[Dict[str, Any]]:
         """
         Fetch column metadata using ALL_TAB_COLUMNS.
+        Supports schema-qualified names (e.g. 'MGBCM.REAL_DATA_1').
         """
         import time
 
-        cache_key = f"metadata_{dataset_name.upper()}"
+        owner, table = self._parse_dataset_name(dataset_name)
+        cache_key = f"metadata_{owner}.{table}"
         now = time.time()
 
         if cache_key in self._cache:
@@ -137,14 +174,14 @@ class OracleAdapter(BaseDatabaseAdapter):
                 data_precision,
                 data_scale
             FROM all_tab_columns
-            WHERE table_name = :name
+            WHERE table_name = :name AND owner = :owner
             ORDER BY column_id
         """
 
         columns = []
         with self.connection() as conn:
             with conn.cursor() as cursor:
-                cursor.execute(query, {"name": dataset_name.upper()})
+                cursor.execute(query, {"name": table, "owner": owner})
                 for row in cursor:
                     col_name = row[0]
                     col_type = row[1].upper()
@@ -206,7 +243,8 @@ class OracleAdapter(BaseDatabaseAdapter):
         filters_sql: Optional[str] = None,
         params: Optional[Dict[str, Any]] = None,
     ) -> int:
-        query = f'SELECT COUNT(*) FROM "{dataset_name}"'
+        owner, table = self._parse_dataset_name(dataset_name)
+        query = f"SELECT COUNT(*) FROM {self._qualified_table(owner, table)}"
         if filters_sql:
             query += f" WHERE {filters_sql}"
 
@@ -218,9 +256,12 @@ class OracleAdapter(BaseDatabaseAdapter):
     def explain_query(self, query: str, params: Optional[Dict[str, Any]] = None) -> int:
         """
         Runs an EXPLAIN plan against the query and returns the estimated maximum cardinality.
-        Raises ValueError if the cost exceeds the threshold or if the explain fails entirely.
+        Raises ValueError if the cost exceeds the threshold.
+        If EXPLAIN PLAN itself fails, logs a warning and returns 0 (lets the query
+        proceed — the timeout guard provides the safety net).
         """
         from app.core.config import get_settings
+        from app.core.logger import logger
 
         settings = get_settings()
 
@@ -243,10 +284,12 @@ class OracleAdapter(BaseDatabaseAdapter):
         except ValueError:
             raise
         except Exception as e:
-            # If explain fails completely, err on the side of caution
-            raise ValueError(
-                "Unable to determine query cost. Query rejected to protect database performance."
-            ) from e
+            # If explain fails, log the error but let the query proceed.
+            # The QUERY_TIMEOUT_SECONDS setting acts as the safety net.
+            logger.warning(
+                f"EXPLAIN PLAN failed: {e}. Allowing query to proceed with timeout guard."
+            )
+            return 0
 
     def get_partition_values(
         self,
@@ -257,27 +300,38 @@ class OracleAdapter(BaseDatabaseAdapter):
     ) -> Dict[str, Any]:
         """
         Fetch distinct partition values for a dataset's load ID column.
+        Supports schema-qualified dataset names.
         """
-        table_name = dataset_name.upper()
+        owner, table = self._parse_dataset_name(dataset_name)
+        qualified = self._qualified_table(owner, table)
         col_name = partition_column.upper()
 
         if load_type_column:
             lt_col = load_type_column.upper()
-            query = f'SELECT DISTINCT "{lt_col}", "{col_name}" FROM "{table_name}" ORDER BY "{col_name}" DESC'
+            query = f'SELECT DISTINCT "{lt_col}", "{col_name}" FROM {qualified} ORDER BY "{col_name}" DESC'
             query = f"SELECT * FROM ({query}) WHERE ROWNUM <= {limit}"
 
             with self.connection() as conn:
                 with conn.cursor() as cursor:
                     cursor.execute(query)
                     values = []
+                    seen_values = set()
                     values_map = {}
                     for row in cursor:
                         lt_val = str(row[0]) if row[0] is not None else "UNKNOWN"
                         id_val = row[1]
-                        values.append(id_val)
+
+                        if id_val not in seen_values:
+                            values.append(id_val)
+                            seen_values.add(id_val)
+
                         if lt_val not in values_map:
                             values_map[lt_val] = []
                         values_map[lt_val].append(id_val)
+
+                    # Ensure values_map also has unique lists
+                    for k in values_map:
+                        values_map[k] = sorted(list(set(values_map[k])), reverse=True)
 
                     return {
                         "values": values,
@@ -286,7 +340,7 @@ class OracleAdapter(BaseDatabaseAdapter):
                         "min_value": values[-1] if values else None,
                     }
         else:
-            query = f'SELECT DISTINCT "{col_name}" FROM "{table_name}" ORDER BY "{col_name}" DESC'
+            query = f'SELECT DISTINCT "{col_name}" FROM {qualified} ORDER BY "{col_name}" DESC'
             # Add Oracle row limit
             query = f"SELECT * FROM ({query}) WHERE ROWNUM <= {limit}"
 

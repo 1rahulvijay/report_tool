@@ -158,10 +158,19 @@ class QueryBuilderService:
         self, op_str: str, val: Any, column_ident: str, param_gen: ParamGenerator
     ) -> str:
         if isinstance(val, str):
-            items = [item.strip() for item in val.split(",") if item.strip()]
+            import re
+
+            # Split on commas, tabs, or newlines
+            items = [
+                item.strip() for item in re.split(r"[,\t\n\r]+", val) if item.strip()
+            ]
             val = items
         elif not isinstance(val, list):
             val = [val]
+
+        # Oracle IN clause strict limit is 1000. Cap at 999 for safety.
+        if len(val) > 999:
+            val = val[:999]
 
         if not val:
             return "1=0" if op_str == "in" else "1=1"
@@ -193,17 +202,36 @@ class QueryBuilderService:
         _, placeholder = param_gen.add("p", val)
         return f"{column_ident} {sql_op} {placeholder}"
 
+    def _apply_alias(
+        self, col_ref: str, alias_map: Dict[str, str], default_ds: str
+    ) -> str:
+        """Resolves a column reference to use its mapped alias."""
+        if not alias_map:
+            return col_ref
+        full_name = col_ref if "." in col_ref else f"{default_ds}.{col_ref}"
+        ds, cname = self._resolve_column_ref(full_name, alias_map, default_ds)
+        if ds in alias_map:
+            return f"{alias_map[ds]}.{cname}"
+        return col_ref
+
     def _parse_condition(
         self,
         condition: FilterCondition,
         param_gen: ParamGenerator,
+        alias_map: Dict[str, str] = None,
+        default_ds: str = None,
         column_metadata: Dict[str, Any] = None,
         force_agg: bool = False,
     ) -> str:
         """
         Parse a single FilterCondition into a SQL snippet and update param_gen.
         """
-        column_ident = self._quote_identifier(condition.column)
+        res_column = (
+            self._apply_alias(condition.column, alias_map, default_ds)
+            if alias_map
+            else condition.column
+        )
+        column_ident = self._quote_identifier(res_column)
         if force_agg:
             column_ident = f"MAX({column_ident})"
         op_str = str(
@@ -222,7 +250,7 @@ class QueryBuilderService:
         if val is None or val == "":
             return "1=1"
 
-        is_date_type = getattr(condition, "datatype", "string") == "date"
+        is_date_type = getattr(condition, "datatype", "string") in ("date", "timestamp")
         if not is_date_type and column_metadata:
             # Case-insensitive lookup for metadata
             meta = column_metadata.get(condition.column)
@@ -235,8 +263,9 @@ class QueryBuilderService:
                         break
 
             if meta:
-                b_type = meta.get("base_type") if isinstance(meta, dict) else str(meta)
-                if b_type == "date":
+                # Use robust checking for base_type
+                m_val = meta.get("base_type") if isinstance(meta, dict) else str(meta)
+                if m_val and m_val.lower() == "date":
                     is_date_type = True
 
         if is_date_type:
@@ -245,13 +274,12 @@ class QueryBuilderService:
             def parse_dt(v):
                 if isinstance(v, str):
                     try:
+                        # Standard YYYY-MM-DD
                         if len(v) == 10:
                             return datetime.datetime.strptime(v, "%Y-%m-%d").date()
-                        else:
-                            return datetime.datetime.fromisoformat(
-                                v.replace("Z", "+00:00")
-                            )
-                    except ValueError:
+                        # ISO 8601 with/without timezone
+                        return datetime.datetime.fromisoformat(v.replace("Z", "+00:00"))
+                    except (ValueError, TypeError):
                         return v
                 return v
 
@@ -260,7 +288,8 @@ class QueryBuilderService:
             else:
                 val = parse_dt(val)
 
-        is_txt = self._is_text_type(condition, column_metadata)
+        is_txt = self._is_text_type(condition, column_metadata) and not is_date_type
+
         if (
             op_str
             in ["contains", "not_contains", "starts_with", "ends_with", "eq", "neq"]
@@ -293,6 +322,8 @@ class QueryBuilderService:
         self,
         group: LogicalGroup,
         param_gen: ParamGenerator,
+        alias_map: Dict[str, str] = None,
+        default_ds: str = None,
         agg_aliases: set = None,
         column_metadata: Dict[str, Any] = None,
         force_agg: bool = False,
@@ -323,11 +354,18 @@ class QueryBuilderService:
             if isinstance(item, FilterCondition):
                 if promo_needed:
                     sql = self._parse_condition(
-                        item, param_gen, column_metadata, force_agg=True
+                        item,
+                        param_gen,
+                        alias_map,
+                        default_ds,
+                        column_metadata,
+                        force_agg=True,
                     )
                     having_snippets.append(f"({sql})")
                 else:
-                    sql = self._parse_condition(item, param_gen, column_metadata)
+                    sql = self._parse_condition(
+                        item, param_gen, alias_map, default_ds, column_metadata
+                    )
                     if item.column in agg_aliases:
                         having_snippets.append(f"({sql})")
                     else:
@@ -337,11 +375,18 @@ class QueryBuilderService:
                 condition = FilterCondition(**item)
                 if promo_needed:
                     sql = self._parse_condition(
-                        condition, param_gen, column_metadata, force_agg=True
+                        condition,
+                        param_gen,
+                        alias_map,
+                        default_ds,
+                        column_metadata,
+                        force_agg=True,
                     )
                     having_snippets.append(f"({sql})")
                 else:
-                    sql = self._parse_condition(condition, param_gen, column_metadata)
+                    sql = self._parse_condition(
+                        condition, param_gen, alias_map, default_ds, column_metadata
+                    )
                     if condition.column in agg_aliases:
                         having_snippets.append(f"({sql})")
                     else:
@@ -351,6 +396,8 @@ class QueryBuilderService:
                 w_sql, h_sql = self._parse_logical_group(
                     item,
                     param_gen,
+                    alias_map,
+                    default_ds,
                     agg_aliases,
                     column_metadata,
                     force_agg=promo_needed,
@@ -365,6 +412,8 @@ class QueryBuilderService:
                 w_sql, h_sql = self._parse_logical_group(
                     nested_group,
                     param_gen,
+                    alias_map,
+                    default_ds,
                     agg_aliases,
                     column_metadata,
                     force_agg=promo_needed,
@@ -465,6 +514,27 @@ class QueryBuilderService:
 
         return None, item
 
+    def _resolve_column_ref(
+        self, col_ref: str, alias_map: dict, default_dataset: str
+    ) -> tuple:
+        """
+        Resolve a column reference that may contain a schema-qualified dataset prefix.
+        E.g. 'MGBCM.REAL_DATA_1.LOADID' -> ('MGBCM.REAL_DATA_1', 'LOADID')
+             'LOADID' -> (default_dataset, 'LOADID')
+             'sales.amount' -> ('sales', 'amount')  [if 'sales' in alias_map]
+        Returns: (dataset_name, column_name)
+        """
+        if "." not in col_ref:
+            return default_dataset, col_ref
+        # Try matching longest dataset prefix from alias_map
+        for ds_name in sorted(alias_map.keys(), key=len, reverse=True):
+            prefix = ds_name + "."
+            if col_ref.startswith(prefix):
+                return ds_name, col_ref[len(prefix) :]
+        # Fallback: simple first-dot split (backward compat for non-schema names)
+        parts = col_ref.split(".", 1)
+        return parts[0], parts[1]
+
     def build_query(
         self, request: QueryRequest, is_count_query: bool = False
     ) -> Tuple[str, Dict[str, Any]]:
@@ -476,9 +546,11 @@ class QueryBuilderService:
         dataset_occurrences = {}
 
         def get_unique_alias(ds_name: str) -> str:
-            count = dataset_occurrences.get(ds_name, 0)
-            dataset_occurrences[ds_name] = count + 1
-            return ds_name if count == 0 else f"{ds_name}_{count}"
+            # Flatten schema-qualified names: MGBCM.REAL_DATA_1 -> MGBCM_REAL_DATA_1
+            flat = ds_name.replace(".", "_")
+            count = dataset_occurrences.get(flat, 0)
+            dataset_occurrences[flat] = count + 1
+            return flat if count == 0 else f"{flat}_{count}"
 
         base_alias = get_unique_alias(request.dataset)
         alias_map = {request.dataset: base_alias}
@@ -501,7 +573,9 @@ class QueryBuilderService:
                 for gb_col in request.group_by:
                     res_col = gb_col
                     if "." in gb_col:
-                        ds, cname = gb_col.split(".", 1)
+                        ds, cname = self._resolve_column_ref(
+                            gb_col, alias_map, request.dataset
+                        )
                         if ds in alias_map:
                             res_col = f"{alias_map[ds]}.{cname}"
 
@@ -521,12 +595,7 @@ class QueryBuilderService:
             for agg in request.aggregations:
                 func = func_map.get(agg.function.lower(), "SUM")
 
-                res_agg_col = agg.column
-                if "." in agg.column:
-                    ds, cname = agg.column.split(".", 1)
-                    if ds in alias_map:
-                        res_agg_col = f"{alias_map[ds]}.{cname}"
-
+                res_agg_col = self._apply_alias(agg.column, alias_map, request.dataset)
                 col = self._quote_identifier(res_agg_col)
 
                 raw_output = (
@@ -555,24 +624,28 @@ class QueryBuilderService:
         elif request.columns and len(request.columns) > 0:
             quoted_cols = []
             for c in request.columns:
+                # Ensure we resolve qualified references like 'MGBCM'.TABLE.COL
                 full_name = f"{request.dataset}.{c}" if "." not in c else c
 
                 res_full_name = full_name
                 if "." in full_name:
-                    ds, cname = full_name.split(".", 1)
+                    ds, cname = self._resolve_column_ref(
+                        full_name, alias_map, request.dataset
+                    )
                     if ds in alias_map:
                         res_full_name = f"{alias_map[ds]}.{cname}"
 
                 quoted = self._quote_identifier(res_full_name)
+                # Alias the column back to its original requested name
                 quoted_cols.append(f'{quoted} AS "{full_name}"')
             select_clause = f"{hint}" + ", ".join(quoted_cols)
         else:
-            if not is_count_query:
+            # Fallback for empty columns when counting or initial transitions
+            if not is_count_query and not getattr(request, "is_preview", False):
                 raise SQLGenerationError(
                     "Aggressive Column Pruning strictly prohibits 'SELECT *' unbound memory payloads.",
                     context=request.columns,
                 )
-            # fallback for empty columns when counting
             select_clause = "1"
 
         # Collect Aggregation Aliases before pushdown
@@ -652,25 +725,41 @@ class QueryBuilderService:
 
                     if len(part_values) == 1:
                         _, placeholder = param_gen.add(
-                            f"part_{ds_name}", parse_val(part_values[0])
+                            f"part_{ds_name.replace('.', '_')}",
+                            parse_val(part_values[0]),
                         )
                         where_parts.append(f"{part_col} = {placeholder}")
                     elif len(part_values) > 1:
                         in_placeholders = []
                         for v in part_values:
                             _, placeholder = param_gen.add(
-                                f"part_{ds_name}", parse_val(v)
+                                f"part_{ds_name.replace('.', '_')}", parse_val(v)
                             )
                             in_placeholders.append(placeholder)
                         where_parts.append(
                             f"{part_col} IN ({', '.join(in_placeholders)})"
                         )
 
+                    # Inject load_type predicate to ensure daily→daily, monthly→monthly
+                    if request.partition_load_type and part_cfg.get("load_type_column"):
+                        lt_col_name = part_cfg["load_type_column"]
+                        lt_col = self._quote_identifier(lt_col_name)
+                        _, lt_placeholder = param_gen.add(
+                            f"lt_{ds_name.replace('.', '_')}",
+                            request.partition_load_type,
+                        )
+                        where_parts.append(f"{lt_col} = {lt_placeholder}")
+
             # 2. User filter pushdown
             ds_filters = pushdown_map.get(ds_name)
             if ds_filters:
                 w_sql, _ = self._parse_logical_group(
-                    ds_filters, param_gen, agg_aliases, request.column_metadata
+                    ds_filters,
+                    param_gen,
+                    None,
+                    ds_name,
+                    agg_aliases,
+                    request.column_metadata,
                 )
                 if w_sql:
                     where_parts.append(w_sql)
@@ -714,18 +803,29 @@ class QueryBuilderService:
                 on_clauses = []
                 for cond in join.on:
                     l_ds = join.left_dataset
-                    l_alias = alias_map.get(l_ds, l_ds)
+                    l_alias = alias_map.get(l_ds)
 
-                    left_full = (
-                        f"{l_alias}.{cond.left_column}"
-                        if "." not in cond.left_column
-                        else cond.left_column
-                    )
-                    right_full = (
-                        f"{right_alias}.{cond.right_column}"
-                        if "." not in cond.right_column
-                        else cond.right_column
-                    )
+                    if not l_alias:
+                        # Fallback to resolving search-depth if alias not in map
+                        l_ds_resolved, l_col_name = self._resolve_column_ref(
+                            cond.left_column, alias_map, l_ds
+                        )
+                        l_alias = alias_map.get(l_ds_resolved, l_ds_resolved)
+                    else:
+                        l_col_name = cond.left_column
+
+                    # Strip any lingering schema-prefix from the column name part
+                    if "." in l_col_name:
+                        l_col_name = l_col_name.split(".")[-1]
+
+                    left_full = f"{l_alias}.{l_col_name}"
+
+                    # Right side is always the current join's right_dataset
+                    r_col_name = cond.right_column
+                    if "." in r_col_name:
+                        r_col_name = r_col_name.split(".")[-1]
+
+                    right_full = f"{right_alias}.{r_col_name}"
 
                     left_col = self._quote_identifier(left_full)
                     right_col = self._quote_identifier(right_full)
@@ -742,7 +842,12 @@ class QueryBuilderService:
         where_sql = ""
         if remaining_filters and getattr(remaining_filters, "conditions", None):
             w_sql, h_sql = self._parse_logical_group(
-                remaining_filters, param_gen, agg_aliases, request.column_metadata
+                remaining_filters,
+                param_gen,
+                alias_map,
+                request.dataset,
+                agg_aliases,
+                request.column_metadata,
             )
             where_sql = w_sql
             having_sql = h_sql
@@ -752,7 +857,10 @@ class QueryBuilderService:
 
         # 4. GROUP BY Clause
         if request.group_by and len(request.group_by) > 0:
-            quoted_gb = [self._quote_identifier(c) for c in request.group_by]
+            quoted_gb = []
+            for c in request.group_by:
+                res_c = self._apply_alias(c, alias_map, request.dataset)
+                quoted_gb.append(self._quote_identifier(res_c))
             sql += f"\nGROUP BY {', '.join(quoted_gb)}"
             if having_sql:
                 sql += f"\nHAVING {having_sql}"
@@ -761,7 +869,11 @@ class QueryBuilderService:
         if request.sorting and len(request.sorting) > 0 and not is_count_query:
             sort_snippets = []
             for sort in request.sorting:
-                col_ident = self._quote_identifier(sort.column)
+                if sort.column in agg_aliases:
+                    col_ident = self._quote_identifier(sort.column)
+                else:
+                    res_col = self._apply_alias(sort.column, alias_map, request.dataset)
+                    col_ident = self._quote_identifier(res_col)
                 dir_sql = "DESC" if sort.direction == "DESC" else "ASC"
                 sort_snippets.append(f"{col_ident} {dir_sql}")
             sql += f"\nORDER BY {', '.join(sort_snippets)}"
@@ -783,16 +895,16 @@ class QueryBuilderService:
 
         # If there are aggregations/group by, we MUST subquery to count the groups
         if request.group_by or request.aggregations:
-            sql = f"SELECT COUNT(*) as total_rows FROM (\n{inner_sql}\n) sub"
+            sql = f'SELECT COUNT(*) as "total_rows" FROM (\n{inner_sql}\n) sub'
             return sql, params
 
         # For non-grouped queries, we can replace the SELECT clause directly
         # Find the FROM keyword to strip out the dynamically generated SELECT
         from_idx = inner_sql.find("\nFROM ")
         if from_idx != -1:
-            sql = f"SELECT COUNT(*) as total_rows {inner_sql[from_idx:]}"
+            sql = f'SELECT COUNT(*) as "total_rows" {inner_sql[from_idx:]}'
             return sql, params
 
         # Fallback
-        sql = f"SELECT COUNT(*) as total_rows FROM (\n{inner_sql}\n) sub"
+        sql = f'SELECT COUNT(*) as "total_rows" FROM (\n{inner_sql}\n) sub'
         return sql, params

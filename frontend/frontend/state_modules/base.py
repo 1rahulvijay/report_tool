@@ -130,8 +130,8 @@ class BaseState(rx.State):
                     self.partition_unrestricted = False
                     self.partition_load_type = ""
 
-                # Default all columns to visible (using sync to qualify them)
-                self.visible_columns = [col["name"] for col in self.columns]
+                # Start with zero columns selected — user must manually choose
+                self.visible_columns = []
                 self._dataset_column_cache[dataset_name] = self.columns
 
                 from frontend.state import AppState
@@ -144,8 +144,8 @@ class BaseState(rx.State):
                 # Reset pagination on dataset change
                 self.page_number = 1
 
-                # Immediately preview data
                 self.query_results = []  # Reset results for new dataset
+                self.total_row_count = 0
                 from frontend.state import AppState
 
                 yield AppState.execute_query()
@@ -207,6 +207,7 @@ class BaseState(rx.State):
         from frontend.state import AppState
 
         self.page_number = 1
+        self.query_results = []
         yield AppState.execute_query()
 
     @rx.var
@@ -261,7 +262,7 @@ class BaseState(rx.State):
 
         from frontend.state import AppState
 
-        return AppState.execute_query()
+        yield AppState.execute_query()
 
     @rx.var
     def column_types(self) -> Dict[str, str]:

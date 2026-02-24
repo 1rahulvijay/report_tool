@@ -54,8 +54,12 @@ class AppState(AggregationState):
             "aggregations": self.aggregations if self.aggregations else None,
             "use_high_perf_hints": self.use_oracle_in_memory,
             "is_virtual_scroll": self.is_virtual_scroll,
+            "is_preview": True,
             "column_metadata": self._get_column_metadata_map(),
             "partition_filters": self._get_partition_filters(),
+            "partition_load_type": self.partition_load_type
+            if self.partition_load_type
+            else None,
         }
 
         try:
@@ -67,8 +71,8 @@ class AppState(AggregationState):
                 new_data = data.get("data", [])
 
                 if self.is_virtual_scroll and self.page_number > 1:
-                    # Append for infinite scroll
-                    self.query_results.extend(new_data)
+                    # Append for infinite scroll (reassign to trigger Reflex state update)
+                    self.query_results = self.query_results + new_data
                 else:
                     # Replace for standard pagination or first fetch
                     self.query_results = new_data
@@ -103,12 +107,14 @@ class AppState(AggregationState):
         self.is_virtual_scroll = not self.is_virtual_scroll
         self.page_number = 1
         self.query_results = []
-        return self.execute_query()
+        async for ev in self.execute_query():
+            yield ev
 
     async def toggle_oracle_in_memory(self):
         """Toggle the use of Oracle INMEMORY SQL hints."""
         self.use_oracle_in_memory = not self.use_oracle_in_memory
-        return self.execute_query()
+        async for ev in self.execute_query():
+            yield ev
 
     async def export_excel(self):
         """
@@ -143,6 +149,9 @@ class AppState(AggregationState):
             "aggregations": self.aggregations if self.aggregations else None,
             "column_metadata": self._get_column_metadata_map(),
             "partition_filters": self._get_partition_filters(),
+            "partition_load_type": self.partition_load_type
+            if self.partition_load_type
+            else None,
         }
 
         try:
@@ -269,6 +278,9 @@ class AppState(AggregationState):
             "aggregations": self.aggregations if self.aggregations else None,
             "column_metadata": self._get_column_metadata_map(),
             "partition_filters": self._get_partition_filters(),
+            "partition_load_type": self.partition_load_type
+            if self.partition_load_type
+            else None,
         }
 
         try:
@@ -306,7 +318,8 @@ class AppState(AggregationState):
             val = int(page)
             if 1 <= val <= self.total_pages:
                 self.page_number = val
-                return self.execute_query()
+                async for ev in self.execute_query():
+                    yield ev
         except ValueError:
             pass
 
@@ -317,29 +330,36 @@ class AppState(AggregationState):
             if val > 0:
                 self.page_size = val
                 self.page_number = 1
-                return self.execute_query()
+                async for ev in self.execute_query():
+                    yield ev
         except ValueError:
             pass
 
     async def next_page(self, _=None):
         if self.page_number < self.total_pages:
+            if self.is_virtual_scroll:
+                self.is_fetching_more = True
             self.page_number += 1
-            return self.execute_query()
+            async for ev in self.execute_query():
+                yield ev
 
     async def prev_page(self, _=None):
         if self.page_number > 1:
             self.page_number -= 1
-            return self.execute_query()
+            async for ev in self.execute_query():
+                yield ev
 
     async def first_page(self, _=None):
         if self.page_number != 1:
             self.page_number = 1
-            return self.execute_query()
+            async for ev in self.execute_query():
+                yield ev
 
     async def last_page(self, _=None):
         if self.page_number != self.total_pages:
             self.page_number = self.total_pages
-            return self.execute_query()
+            async for ev in self.execute_query():
+                yield ev
 
     @rx.var
     def total_pages(self) -> int:
@@ -387,9 +407,15 @@ class AppState(AggregationState):
 
     @rx.var
     def dataset_names(self) -> List[str]:
-        """Returns a list of dataset names (sorted) for the frontend select dropdown."""
+        """Returns a list of full dataset names (sorted) for internal use."""
         names = [ds["name"] for ds in self.datasets]
         return sorted(names)
+
+    @rx.var
+    def dataset_display_names(self) -> List[str]:
+        """Returns display-only names (table only, no schema) — same order as dataset_names."""
+        names = self.dataset_names
+        return [n.split(".")[-1] if "." in n else n for n in names]
 
     @rx.var
     def can_export(self) -> bool:
@@ -403,7 +429,7 @@ class AppState(AggregationState):
 
     @rx.var
     def filtered_datasets(self) -> List[str]:
-        """Returns the list of dataset names filtered by the sidebar search input."""
+        """Returns the list of dataset names (full) filtered by the sidebar search input."""
         names = self.dataset_names
         if not self.dataset_search_text:
             return names
@@ -411,12 +437,39 @@ class AppState(AggregationState):
         return [name for name in names if search_text in name.lower()]
 
     @rx.var
-    def filtered_columns(self) -> List[Dict[str, Any]]:
-        """Returns the list of columns filtered by the sidebar search input."""
-        if not self.column_search_text:
-            return self.columns
-        search_text = self.column_search_text.lower()
-        return [col for col in self.columns if search_text in col["name"].lower()]
+    def filtered_datasets_display(self) -> List[List[str]]:
+        """Returns [[full_name, display_name], ...] for filtered datasets."""
+        return [
+            [name, name.split(".")[-1] if "." in name else name]
+            for name in self.filtered_datasets
+        ]
+
+    @rx.var
+    def display_selected_dataset(self) -> str:
+        """Returns selected dataset display name (table only, no schema)."""
+        ds = self.selected_dataset
+        if not ds:
+            return ""
+        return ds.split(".")[-1] if "." in ds else ds
+
+    @rx.var
+    def filtered_columns(self) -> list[dict[str, str]]:
+        """Returns columns with display_name added for sidebar iteration."""
+        cols = (
+            self.columns
+            if not self.column_search_text
+            else [
+                col
+                for col in self.columns
+                if self.column_search_text.lower() in col["name"].lower()
+            ]
+        )
+        result = []
+        for col in cols:
+            name = col["name"]
+            display = name.split(".")[-1] if "." in name else name
+            result.append({"name": name, "display_name": display})
+        return result
 
     @rx.var
     def active_filter_conditions(self) -> List[Dict[str, Any]]:
@@ -425,21 +478,24 @@ class AppState(AggregationState):
 
     @rx.var
     def table_headers(self) -> List[str]:
-        """Dynamically computes the header names from visible columns maintaining order."""
-        # Ensure it maps order based on the master columns list, but also include
-        # dynamically created aggregation columns that might not exist in self.columns
+        """Dynamically computes display-ready header names (column only, no table prefix)."""
         original_cols = [c["name"] for c in self.columns]
         headers = []
 
         # First add columns that exist in the original schema in defined order
         for col in self.columns:
             if col["name"] in self.visible_columns:
-                headers.append(col["name"])
+                # Strip table/schema prefix for display
+                name = col["name"]
+                display = name.split(".")[-1] if "." in name else name
+                headers.append(display)
 
         # Then append any visible columns (like aggregation aliases) that weren't in the original schema
         for vcol in self.visible_columns:
-            if vcol not in original_cols and vcol not in headers:
-                headers.append(vcol)
+            if vcol not in original_cols:
+                display = vcol.split(".")[-1] if "." in vcol else vcol
+                if display not in headers:
+                    headers.append(display)
 
         return headers
 

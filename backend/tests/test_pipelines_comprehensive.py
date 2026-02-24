@@ -37,7 +37,7 @@ from app.schemas.query import (
 
 @pytest.fixture
 def qb():
-    return QueryBuilderService(dialect="duckdb")
+    return QueryBuilderService()
 
 
 # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•

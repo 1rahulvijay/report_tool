@@ -1,7 +1,10 @@
 ﻿import asyncio
 import httpx
 
+import pytest
 
+
+@pytest.mark.asyncio
 async def test_derived_filter():
     payload = {
         "dataset": "employee_roster",

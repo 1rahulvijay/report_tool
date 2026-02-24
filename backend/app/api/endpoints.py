@@ -46,7 +46,9 @@ def get_datasets(db: BaseDatabaseAdapter = Depends(get_db)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/datasets/{dataset_name}/columns", response_model=DatasetColumnsResponse)
+@router.get(
+    "/datasets/{dataset_name:path}/columns", response_model=DatasetColumnsResponse
+)
 def get_dataset_columns(dataset_name: str, db: BaseDatabaseAdapter = Depends(get_db)):
     """
     Dynamically fetch column metadata (types, filterability) for a specific dataset.
@@ -383,6 +385,7 @@ def download_export(job_id: str, background_tasks: BackgroundTasks):
 def _sync_csv_response(db, sql, params, dataset_name):
     """Small CSV: load DataFrame into memory and return."""
     df = db.execute_query_df(sql, params)
+    df.columns = [c.split(".")[-1] if "." in c else c for c in df.columns]
     stream = io.StringIO()
     # Add UTF-8 BOM so Excel automatically recognizes the encoding
     stream.write("\ufeff")
@@ -408,8 +411,12 @@ def _streaming_csv_response(db, sql, params, dataset_name):
             if not chunk:
                 continue
             if first_chunk:
-                # Yield CSV header from the first row's keys
-                header = ",".join(str(k) for k in chunk[0].keys())
+                # Yield CSV header from the first row's keys, stripping schema prefixes
+                clean_keys = [
+                    str(k).split(".")[-1] if "." in str(k) else str(k)
+                    for k in chunk[0].keys()
+                ]
+                header = ",".join(clean_keys)
                 yield header + "\n"
                 first_chunk = False
             for row in chunk:
@@ -455,43 +462,109 @@ def _sync_excel_response(db, sql, params, dataset_name):
     worksheet.set_tab_color("#1e3a8a")
 
     row_count = len(df)
-    col_names = df.columns.tolist()
+    col_names = [c.split(".")[-1] if "." in c else c for c in df.columns.tolist()]
 
     if row_count > 0:
         worksheet.autofilter(0, 0, row_count, len(col_names) - 1)
 
-    # Styles
+    # Styles — match UI colors: dark navy headers, white body, black text
     header_format = workbook.add_format(
         {
             "bold": True,
             "font_color": "#ffffff",
-            "bg_color": "#1e3a8a",
+            "bg_color": "#0f172a",
             "border": 1,
-            "border_color": "#1e3a8a",
+            "border_color": "#0f172a",
             "align": "left",
             "valign": "vcenter",
+            "font_size": 11,
+            "font_name": "Calibri",
         }
     )
 
-    cell_format = workbook.add_format({"border": 1, "border_color": "#e2e8f0"})
+    cell_format = workbook.add_format(
+        {
+            "border": 1,
+            "border_color": "#e2e8f0",
+            "bg_color": "#ffffff",
+            "font_color": "#000000",
+            "font_size": 10,
+            "font_name": "Calibri",
+        }
+    )
+    cell_format_alt = workbook.add_format(
+        {
+            "border": 1,
+            "border_color": "#e2e8f0",
+            "bg_color": "#f8fafc",
+            "font_color": "#000000",
+            "font_size": 10,
+            "font_name": "Calibri",
+        }
+    )
     num_format = workbook.add_format(
-        {"num_format": "#,##0.00", "border": 1, "border_color": "#e2e8f0"}
+        {
+            "num_format": "#,##0.00",
+            "border": 1,
+            "border_color": "#e2e8f0",
+            "bg_color": "#ffffff",
+            "font_color": "#000000",
+            "font_size": 10,
+            "font_name": "Calibri",
+        }
+    )
+    num_format_alt = workbook.add_format(
+        {
+            "num_format": "#,##0.00",
+            "border": 1,
+            "border_color": "#e2e8f0",
+            "bg_color": "#f8fafc",
+            "font_color": "#000000",
+            "font_size": 10,
+            "font_name": "Calibri",
+        }
     )
     int_format = workbook.add_format(
-        {"num_format": "#,##0", "border": 1, "border_color": "#e2e8f0"}
+        {
+            "num_format": "#,##0",
+            "border": 1,
+            "border_color": "#e2e8f0",
+            "bg_color": "#ffffff",
+            "font_color": "#000000",
+            "font_size": 10,
+            "font_name": "Calibri",
+        }
+    )
+    int_format_alt = workbook.add_format(
+        {
+            "num_format": "#,##0",
+            "border": 1,
+            "border_color": "#e2e8f0",
+            "bg_color": "#f8fafc",
+            "font_color": "#000000",
+            "font_size": 10,
+            "font_name": "Calibri",
+        }
     )
 
     for col_num, value in enumerate(col_names):
         worksheet.write(0, col_num, value, header_format)
 
     for row_idx, row in enumerate(df.itertuples(index=False), start=1):
+        is_alt = row_idx % 2 == 0
         for col_idx, value in enumerate(row):
             if isinstance(value, float):
-                worksheet.write_number(row_idx, col_idx, value, num_format)
+                worksheet.write_number(
+                    row_idx, col_idx, value, num_format_alt if is_alt else num_format
+                )
             elif isinstance(value, int):
-                worksheet.write_number(row_idx, col_idx, value, int_format)
+                worksheet.write_number(
+                    row_idx, col_idx, value, int_format_alt if is_alt else int_format
+                )
             else:
-                worksheet.write(row_idx, col_idx, value, cell_format)
+                worksheet.write(
+                    row_idx, col_idx, value, cell_format_alt if is_alt else cell_format
+                )
 
     worksheet.set_column(0, len(col_names) - 1, 22)
     workbook.close()

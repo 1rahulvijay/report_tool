@@ -20,7 +20,7 @@ def sidebar() -> rx.Component:
                             rx.cond(
                                 AppState.selected_dataset == "",
                                 "No Dataset",
-                                AppState.selected_dataset,
+                                AppState.display_selected_dataset,
                             ),
                             class_name="text-xs font-bold text-slate-700 dark:text-slate-200 truncate uppercase",
                         ),
@@ -31,6 +31,22 @@ def sidebar() -> rx.Component:
                         class_name="flex flex-col overflow-hidden",
                     ),
                     class_name="bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-xl p-3.5 flex items-center gap-3 hover:border-primary/30 transition-colors cursor-pointer group",
+                ),
+                # Large dataset warning
+                rx.cond(
+                    AppState.total_row_count > 1_000_000,
+                    rx.box(
+                        rx.icon(
+                            tag="alert-triangle",
+                            size=14,
+                            class_name="text-amber-500 shrink-0",
+                        ),
+                        rx.text(
+                            "Large dataset — use filters & partitions for best performance",
+                            class_name="text-[10px] text-amber-600 dark:text-amber-400 font-medium",
+                        ),
+                        class_name="flex items-center gap-2 mt-2 p-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg",
+                    ),
                 ),
                 class_name="flex flex-col gap-2 shrink-0 mb-6",
             ),
@@ -66,12 +82,13 @@ def sidebar() -> rx.Component:
                 ),
                 rx.box(
                     rx.vstack(
+                        # Each item is [full_name, display_name]
                         rx.foreach(
-                            AppState.filtered_datasets,
-                            lambda name: rx.box(
+                            AppState.filtered_datasets_display,
+                            lambda pair: rx.box(
                                 rx.hstack(
                                     rx.cond(
-                                        AppState.selected_dataset == name,
+                                        AppState.selected_dataset == pair[0],
                                         rx.icon(
                                             tag="list", size=18, class_name="shrink-0"
                                         ),
@@ -82,15 +99,15 @@ def sidebar() -> rx.Component:
                                         ),
                                     ),
                                     rx.text(
-                                        name,
+                                        pair[1],  # display name (table only)
                                         class_name="whitespace-nowrap text-left text-[11px] pr-2",
                                     ),
                                     align="center",
                                     spacing="2",
                                 ),
-                                on_click=lambda: AppState.select_dataset(name),
+                                on_click=AppState.select_dataset(pair[0]),  # full name
                                 class_name=rx.cond(
-                                    AppState.selected_dataset == name,
+                                    AppState.selected_dataset == pair[0],
                                     "flex items-center w-max min-w-full text-left px-3 py-2 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 text-xs font-semibold cursor-pointer border-none",
                                     "flex items-center w-max min-w-full text-left px-3 py-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-900/50 text-slate-500 dark:text-slate-400 text-xs transition-colors bg-transparent border-none cursor-pointer",
                                 ),
@@ -188,6 +205,7 @@ def sidebar() -> rx.Component:
 
 def column_toggle_item(column: dict) -> rx.Component:
     name = column["name"]
+    display = column["display_name"]
     is_visible = AppState.visible_columns.contains(name)
     return rx.box(
         rx.box(
@@ -202,7 +220,7 @@ def column_toggle_item(column: dict) -> rx.Component:
                 ),
             ),
             rx.text(
-                name,
+                display,
                 class_name="text-[10px] font-medium text-slate-600 dark:text-slate-400 truncate",
             ),
             class_name="flex items-center gap-3",

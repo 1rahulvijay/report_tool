@@ -4,7 +4,7 @@ from app.schemas.query import QueryRequest, FilterCondition, LogicalGroup
 
 
 def test_string_ops_cast_to_varchar():
-    builder = QueryBuilderService("sqlite")
+    builder = QueryBuilderService()
     request = QueryRequest(
         dataset="test_table",
         columns=["id"],
@@ -16,7 +16,7 @@ def test_string_ops_cast_to_varchar():
         ),
     )
     sql, params = builder.build_query(request)
-    assert 'CAST("numeric_col" AS VARCHAR) LIKE' in sql
+    assert 'CAST("numeric_col" AS VARCHAR2(4000))) LIKE' in sql
 
 
 if __name__ == "__main__":

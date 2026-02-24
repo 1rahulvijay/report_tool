@@ -13,32 +13,82 @@
         letter-spacing: -0.011em;
     }
 }
+
 .glass-header {
     backdrop-filter: blur(12px);
     background-color: rgba(255, 255, 255, 0.8);
 }
+
 .dark .glass-header {
     background-color: rgba(15, 23, 42, 0.8);
 }
+
 .custom-scrollbar::-webkit-scrollbar {
-    width: 5px;
-    height: 5px;
+    width: 10px;
+    height: 12px;
+    /* Thicker for easier horizontal scrolling */
 }
+
+/* Default custom scrollbar - auto overflow */
+.custom-scrollbar {
+    overflow: auto;
+}
+
+/* Force horizontal scrollbar for the table grid */
+.custom-scrollbar-force-x {
+    overflow-x: scroll !important;
+}
+
 .custom-scrollbar::-webkit-scrollbar-track {
-    background: transparent;
-}
-.custom-scrollbar::-webkit-scrollbar-thumb {
-    background: #e2e8f0;
+    background: #f1f5f9;
+    /* Slate-100 */
     border-radius: 10px;
 }
-.dark .custom-scrollbar::-webkit-scrollbar-thumb {
-    background: #334155;
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    /* Slate-300 */
+    border-radius: 10px;
 }
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+    /* Slate-400 */
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-track {
+    background: #1e293b;
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #475569;
+}
+
 .in-memory-active {
     box-shadow: 0 0 15px -3px rgba(59, 130, 246, 0.4);
     border-color: rgba(59, 130, 246, 0.5);
 }
+
 .table-header-cell {
     letter-spacing: 0.05em;
     font-size: 11px;
+}
+
+/* Prevent text overflow in modal dialog boxes (Join, Filters, Aggregation Builder) */
+[role="dialog"] select,
+[role="dialog"] input,
+[role="dialog"] .rt-SelectTrigger,
+[role="dialog"] .rt-TextFieldInput {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    box-sizing: border-box;
+}
+
+/* Prevent long text from overflowing in modal content areas */
+[role="dialog"]>div {
+    overflow-wrap: break-word;
+    word-break: break-word;
+    min-width: 0;
 }

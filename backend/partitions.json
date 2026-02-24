@@ -110,5 +110,59 @@
         "load_id_column": null,
         "date_column": null,
         "supported_types": []
+    },
+    "MGBCM.REAL_DATA_1": {
+        "load_type_column": "LOAD_TYPE",
+        "load_id_column": "LOADID",
+        "date_column": "AS_OF_MONTH_SK",
+        "supported_types": [
+            "Monthly",
+            "Daily"
+        ]
+    },
+    "MGBCM.REAL_DATA_2": {
+        "load_type_column": "LOAD_TYPE",
+        "load_id_column": "LOADID",
+        "date_column": "AS_OF_MONTH_SK",
+        "supported_types": [
+            "Monthly",
+            "Daily"
+        ]
+    },
+    "MGBCM.REAL_DATA_3": {
+        "load_type_column": "LOAD_TYPE",
+        "load_id_column": "LOADID",
+        "date_column": "AS_OF_MONTH_SK",
+        "supported_types": [
+            "Monthly",
+            "Daily"
+        ]
+    },
+    "MGLOBE.REAL_DATA_1": {
+        "load_type_column": "LOAD_TYPE",
+        "load_id_column": "LOADID",
+        "date_column": "AS_OF_MONTH_SK",
+        "supported_types": [
+            "Monthly",
+            "Daily"
+        ]
+    },
+    "MGLOBE.REAL_DATA_2": {
+        "load_type_column": "LOAD_TYPE",
+        "load_id_column": "LOADID",
+        "date_column": "AS_OF_MONTH_SK",
+        "supported_types": [
+            "Monthly",
+            "Daily"
+        ]
+    },
+    "MGLOBE.REAL_DATA_3": {
+        "load_type_column": "LOAD_TYPE",
+        "load_id_column": "LOADID",
+        "date_column": "AS_OF_MONTH_SK",
+        "supported_types": [
+            "Monthly",
+            "Daily"
+        ]
     }
 }

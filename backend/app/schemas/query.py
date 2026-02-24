@@ -233,6 +233,11 @@ class QueryRequest(BaseModel):
         description="Maps dataset_name -> list of partition values to restrict queries to. "
         "E.g. {'employee_roster': [202602], 'department_budgets': [202601, 202602]}",
     )
+    partition_load_type: Optional[str] = Field(
+        None,
+        description="The currently selected load type (e.g. 'Daily', 'Monthly'). "
+        "Used to inject an additional WHERE predicate on the load_type_column.",
+    )
     limit: int = Field(
         100,
         ge=1,
@@ -245,6 +250,10 @@ class QueryRequest(BaseModel):
     )
     is_virtual_scroll: bool = Field(
         False, description="Hint for the backend if we are in virtual scroll mode"
+    )
+    is_preview: bool = Field(
+        False,
+        description="If true, bypasses column pruning for initial counts/previews",
     )
 
 

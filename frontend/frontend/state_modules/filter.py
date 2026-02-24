@@ -71,6 +71,8 @@ class FilterState(ColumnState):
                 "<": "lt",
                 ">=": "gte",
                 "<=": "lte",
+                "max": "lte",
+                "min": "gte",
                 "in": "in",
                 "between": "between",
                 "contains": "contains",
@@ -104,7 +106,13 @@ class FilterState(ColumnState):
 
             # TC-PIPE-01: Auto-detect numeric values for all columns (including derived/joined)
             # UI text inputs always send strings; convert to float/int if strictly numeric
-            if value is not None and isinstance(value, str) and value.strip():
+            # IMPORTANT: Skip numeric casting for IN/NOT_IN — the backend handles splitting
+            if (
+                value is not None
+                and isinstance(value, str)
+                and value.strip()
+                and backend_op not in ["in", "not_in"]
+            ):
                 val_str = value.strip()
                 # Prevent casting strings with leading zeros (e.g. employee IDs like '007')
                 # except exactly "0" or floats like "0.5" or "-0.5"

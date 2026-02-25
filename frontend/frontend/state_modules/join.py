@@ -703,3 +703,17 @@ class JoinState(FilterState):
         from frontend.state import AppState
 
         yield AppState.execute_query(force=True)
+
+    async def clear_joins(self):
+        """Clears all configured joins and resets the related columns."""
+        self.joins = []
+        # Restore primary columns and wipe dataset searches
+        primary_cols = self._dataset_column_cache.get(self.selected_dataset, [])
+        self.visible_columns = [
+            f"{self.selected_dataset}.{c['name']}" for c in primary_cols
+        ]
+        self.page_number = 1
+        yield
+        from frontend.state import AppState
+
+        yield AppState.execute_query(force=True)

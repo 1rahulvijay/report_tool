@@ -196,7 +196,7 @@ def aggregation_modal() -> rx.Component:
         rx.box(
             # Backdrop
             rx.box(
-                class_name="fixed inset-0 bg-primary/20 backdrop-blur-sm z-40 transition-opacity",
+                class_name="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 transition-opacity",
                 on_click=AppState.toggle_aggregation_modal,
             ),
             # Modal Content
@@ -409,7 +409,7 @@ def aggregation_modal() -> rx.Component:
                 ),
                 class_name="relative z-50 w-[800px] max-w-[90vw] max-h-[90vh] flex flex-col bg-white rounded-xl shadow-2xl border border-slate-200 overflow-hidden",
             ),
-            class_name="fixed inset-0 flex items-center justify-center p-4 z-50 bg-black/50 backdrop-blur-sm",
+            class_name="fixed inset-0 flex items-center justify-center p-4 z-50",
         ),
         rx.fragment(),
     )

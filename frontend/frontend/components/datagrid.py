@@ -68,8 +68,52 @@ def datagrid() -> rx.Component:
                 ),
                 class_name="relative flex-1 max-w-xl",
             ),
-            # Action Buttons: JOIN | FILTERS | BUILDER
+            # Action Buttons & Clear Buttons
             rx.box(
+                rx.cond(
+                    AppState.has_active_filters
+                    | (AppState.joins.length() > 0)
+                    | (AppState.aggregations.length() > 0),
+                    rx.hstack(
+                        rx.cond(
+                            AppState.has_active_filters,
+                            rx.button(
+                                rx.icon(tag="filter-x", size=14),
+                                "CLEAR FILTERS",
+                                on_click=AppState.clear_filters,
+                                class_name="px-3 py-1.5 bg-orange-50 text-orange-600 border border-orange-200 rounded-md text-[11px] font-bold flex items-center gap-1.5 cursor-pointer hover:bg-orange-100 transition-colors whitespace-nowrap",
+                            ),
+                        ),
+                        rx.cond(
+                            AppState.joins.length() > 0,
+                            rx.button(
+                                rx.icon(tag="link-2-off", size=14),
+                                "CLEAR JOINS",
+                                on_click=AppState.clear_joins,
+                                class_name="px-3 py-1.5 bg-orange-50 text-orange-600 border border-orange-200 rounded-md text-[11px] font-bold flex items-center gap-1.5 cursor-pointer hover:bg-orange-100 transition-colors whitespace-nowrap",
+                            ),
+                        ),
+                        rx.cond(
+                            AppState.aggregations.length() > 0,
+                            rx.button(
+                                rx.icon(tag="calculator", size=14),
+                                "CLEAR AGG",
+                                on_click=AppState.clear_aggregations,
+                                class_name="px-3 py-1.5 bg-orange-50 text-orange-600 border border-orange-200 rounded-md text-[11px] font-bold flex items-center gap-1.5 cursor-pointer hover:bg-orange-100 transition-colors whitespace-nowrap",
+                            ),
+                        ),
+                        rx.button(
+                            rx.icon(tag="list-restart", size=14),
+                            "RESET ALL",
+                            on_click=AppState.reset_all,
+                            class_name="px-3 py-1.5 bg-orange-50 text-orange-600 border border-orange-200 rounded-md text-[11px] font-bold flex items-center gap-1.5 cursor-pointer hover:bg-orange-100 transition-colors whitespace-nowrap",
+                        ),
+                        rx.box(
+                            class_name="h-5 w-px bg-slate-200 dark:bg-slate-700 mx-2"
+                        ),
+                        class_name="flex items-center gap-2",
+                    ),
+                ),
                 rx.button(
                     rx.icon(tag="link", size=16, class_name="text-slate-500"),
                     "JOIN",
@@ -90,7 +134,7 @@ def datagrid() -> rx.Component:
                     on_click=AppState.toggle_aggregation_modal,
                     class_name="flex items-center gap-2 text-xs font-bold text-slate-600 hover:text-primary transition-colors bg-transparent border-none cursor-pointer tracking-wider uppercase",
                 ),
-                class_name="flex items-center gap-5 shrink-0",
+                class_name="flex items-center gap-3 shrink-0",
             ),
             class_name="flex items-center justify-between gap-10 px-4 py-2.5 border-b border-slate-100 dark:border-slate-800/50 shrink-0",
         ),
@@ -197,7 +241,7 @@ def datagrid() -> rx.Component:
                     class_name="w-full text-left border-collapse min-w-[1000px]",
                 ),
             ),
-            class_name="flex-1 overflow-x-auto overflow-y-auto custom-scrollbar custom-scrollbar-force-x px-3 min-h-0",
+            class_name="flex-1 overflow-x-auto overflow-y-auto custom-scrollbar custom-scrollbar-force-x px-3 min-h-0 relative z-30 pb-4",
         ),
         # Sticky Pagination Footer
         rx.cond(

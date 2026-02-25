@@ -70,9 +70,16 @@ class AppState(AggregationState):
 
                 new_data = data.get("data", [])
 
+                print(
+                    f"DEBUG: execute_query fetched {len(new_data)} rows. virtual_scroll={self.is_virtual_scroll}, page_number={self.page_number}"
+                )
+
                 if self.is_virtual_scroll and self.page_number > 1:
                     # Append for infinite scroll (reassign to trigger Reflex state update)
                     self.query_results = self.query_results + new_data
+                    print(
+                        f"DEBUG: appended new data. Total length is now {len(self.query_results)}"
+                    )
                 else:
                     # Replace for standard pagination or first fetch
                     self.query_results = new_data

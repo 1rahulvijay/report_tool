@@ -116,6 +116,11 @@ async def preview_query(
 
     start_time = time.time()
 
+    # DEBUG: Print incoming payload config
+    print(f"DEBUG preview_query received for dataset: {query_request.dataset}")
+    print(f"DEBUG partition_filters: {query_request.partition_filters}")
+    print(f"DEBUG partition_load_type: {query_request.partition_load_type}")
+
     try:
         sql, params = builder.build_query(query_request)
         count_sql, count_params = builder.build_count_query(query_request)

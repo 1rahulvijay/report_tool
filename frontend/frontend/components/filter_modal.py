@@ -272,32 +272,62 @@ def _render_filter_row(rule: Dict[str, Any], path: List[int]) -> rx.Component:
                                 rx.input(
                                     type="text",
                                     value=rule["value"],
-                                    placeholder="Min to Max (comma separated)",
+                                    placeholder="Min, Max (e.g., 10, 50)",
                                     on_change=lambda val: AppState.update_filter_item(
                                         path, "value", val
                                     ),
                                     class_name="w-full h-10 text-sm border-border-light rounded-lg focus:ring-1 focus:ring-primary",
                                 ),
-                                rx.input(
-                                    type="number",
-                                    value=rule["value"],
-                                    placeholder="Value...",
-                                    on_change=lambda val: AppState.update_filter_item(
-                                        path, "value", val
+                                rx.cond(
+                                    rx.Var.create(["in", "not_in"]).contains(
+                                        rule["operator"]
                                     ),
-                                    class_name="w-full h-10 text-sm border-border-light rounded-lg focus:ring-1 focus:ring-primary",
+                                    rx.input(
+                                        type="text",
+                                        value=rule["value"],
+                                        placeholder="Comma separated (e.g., 1, 2, 3)",
+                                        on_change=lambda val: (
+                                            AppState.update_filter_item(
+                                                path, "value", val
+                                            )
+                                        ),
+                                        class_name="w-full h-10 text-sm border-border-light rounded-lg focus:ring-1 focus:ring-primary",
+                                    ),
+                                    rx.input(
+                                        type="number",
+                                        value=rule["value"],
+                                        placeholder="Enter number...",
+                                        on_change=lambda val: (
+                                            AppState.update_filter_item(
+                                                path, "value", val
+                                            )
+                                        ),
+                                        class_name="w-full h-10 text-sm border-border-light rounded-lg focus:ring-1 focus:ring-primary",
+                                    ),
                                 ),
                             ),
                         ),
                         # Default (String)
-                        rx.input(
-                            type="text",
-                            value=rule["value"],
-                            placeholder="Value...",
-                            on_change=lambda val: AppState.update_filter_item(
-                                path, "value", val
+                        rx.cond(
+                            rx.Var.create(["in", "not_in"]).contains(rule["operator"]),
+                            rx.input(
+                                type="text",
+                                value=rule["value"],
+                                placeholder="Comma separated (e.g., A, B, C)",
+                                on_change=lambda val: AppState.update_filter_item(
+                                    path, "value", val
+                                ),
+                                class_name="w-full h-10 text-sm border-border-light rounded-lg focus:ring-1 focus:ring-primary",
                             ),
-                            class_name="w-full h-10 text-sm border-border-light rounded-lg focus:ring-1 focus:ring-primary",
+                            rx.input(
+                                type="text",
+                                value=rule["value"],
+                                placeholder="Enter text...",
+                                on_change=lambda val: AppState.update_filter_item(
+                                    path, "value", val
+                                ),
+                                class_name="w-full h-10 text-sm border-border-light rounded-lg focus:ring-1 focus:ring-primary",
+                            ),
                         ),
                     ),
                     class_name="flex-1",

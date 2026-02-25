@@ -155,7 +155,12 @@ class QueryBuilderService:
         return f"UPPER(CAST({column_ident} AS VARCHAR2(4000))) {sql_op} UPPER({placeholder})"
 
     def _handle_in_arrays(
-        self, op_str: str, val: Any, column_ident: str, param_gen: ParamGenerator
+        self,
+        op_str: str,
+        val: Any,
+        column_ident: str,
+        param_gen: ParamGenerator,
+        is_txt: bool = False,
     ) -> str:
         if isinstance(val, str):
             import re
@@ -178,9 +183,14 @@ class QueryBuilderService:
         sql_op = "IN" if op_str == "in" else "NOT IN"
         placeholders = []
         for item in val:
-            _, placeholder = param_gen.add("p", item)
+            if is_txt and isinstance(item, str):
+                _, placeholder = param_gen.add("p", item.upper())
+            else:
+                _, placeholder = param_gen.add("p", item)
             placeholders.append(placeholder)
 
+        if is_txt:
+            return f"UPPER(CAST({column_ident} AS VARCHAR2(4000))) {sql_op} ({', '.join(placeholders)})"
         return f"{column_ident} {sql_op} ({', '.join(placeholders)})"
 
     def _handle_between(
@@ -298,7 +308,7 @@ class QueryBuilderService:
             return self._handle_text_wildcards(op_str, val, column_ident, param_gen)
 
         if op_str in ["in", "not_in"]:
-            return self._handle_in_arrays(op_str, val, column_ident, param_gen)
+            return self._handle_in_arrays(op_str, val, column_ident, param_gen, is_txt)
 
         if op_str == "between":
             return self._handle_between(op_str, val, column_ident, param_gen)
@@ -742,13 +752,13 @@ class QueryBuilderService:
 
                     # Inject load_type predicate to ensure daily→daily, monthly→monthly
                     if request.partition_load_type and part_cfg.get("load_type_column"):
-                        lt_col_name = part_cfg["load_type_column"]
+                        lt_col_name = part_cfg["load_type_column"].upper()
                         lt_col = self._quote_identifier(lt_col_name)
                         _, lt_placeholder = param_gen.add(
                             f"lt_{ds_name.replace('.', '_')}",
-                            request.partition_load_type,
+                            request.partition_load_type.upper(),
                         )
-                        where_parts.append(f"{lt_col} = {lt_placeholder}")
+                        where_parts.append(f"UPPER({lt_col}) = {lt_placeholder}")
 
             # 2. User filter pushdown
             ds_filters = pushdown_map.get(ds_name)
@@ -883,6 +893,9 @@ class QueryBuilderService:
             sql += (
                 f"\nOFFSET {request.offset} ROWS FETCH NEXT {request.limit} ROWS ONLY"
             )
+
+        print(f"DEBUG FINAL SQL: {sql}")
+        print(f"DEBUG FINAL PARAMS: {param_gen.params}")
 
         return sql, param_gen.params
 

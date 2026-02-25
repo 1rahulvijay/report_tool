@@ -12,10 +12,10 @@ def data_vintage_bar() -> rx.Component:
     """Relocated control bar: Data Vintage (left) and Action Buttons (right)."""
     return rx.box(
         rx.hstack(
-            # LEFT SIDE: Data Vintage Controls (Conditional)
-            rx.cond(
-                AppState.has_partition_info,
-                rx.box(
+            # LEFT SIDE: Persistent container for Data Vintage and Clear Buttons
+            rx.hstack(
+                rx.cond(
+                    AppState.has_partition_info,
                     rx.hstack(
                         # Load Type section
                         rx.cond(
@@ -127,10 +127,11 @@ def data_vintage_bar() -> rx.Component:
                                 ),
                             ),
                         ),
-                        class_name="flex items-center gap-2 overflow-x-auto custom-scrollbar flex-1",
+                        class_name="flex items-center gap-2 shrink-0",
                     ),
+                    rx.fragment(),
                 ),
-                rx.fragment(),
+                class_name="flex items-center gap-2 overflow-x-auto custom-scrollbar flex-1",
             ),
             # RIGHT SIDE: Relocated Action Buttons (Always Visible)
             rx.hstack(
@@ -164,23 +165,6 @@ def data_vintage_bar() -> rx.Component:
                         "Paginated",
                         on_click=AppState.toggle_virtual_scroll,
                         class_name="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold text-slate-500 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-100 transition-colors",
-                    ),
-                ),
-                # Clear/Reset Buttons (Relocated)
-                rx.cond(
-                    AppState.has_active_filters
-                    | (AppState.joins.length() > 0)
-                    | (AppState.aggregations.length() > 0),
-                    rx.hstack(
-                        rx.box(class_name="h-4 w-px bg-slate-200 mx-1"),
-                        rx.button(
-                            rx.icon(tag="rotate-ccw", size=14),
-                            "RESET",
-                            on_click=AppState.reset_all,
-                            class_name="flex items-center gap-1 px-2 py-1 text-[10px] font-black text-red-500 hover:bg-red-50 border border-transparent rounded transition-colors cursor-pointer uppercase tracking-tighter",
-                        ),
-                        spacing="1",
-                        align="center",
                     ),
                 ),
                 # Export Menu

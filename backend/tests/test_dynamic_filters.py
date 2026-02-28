@@ -5,7 +5,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 import pytest
 from pydantic import ValidationError
-from app.schemas.query import QueryRequest, FilterCondition
+from app.schemas.query import FilterCondition
 
 
 def test_numeric_valid_equals():
@@ -20,12 +20,11 @@ def test_numeric_valid_greater():
     assert cond.value == 100
 
 
-def test_numeric_invalid_contains():
-    with pytest.raises(ValidationError) as exc:
-        FilterCondition(
-            column="salary", datatype="number", operator="contains", value=100
-        )
-    assert "not allowed for datatype" in str(exc.value)
+def test_numeric_valid_contains():
+    cond = FilterCondition(
+        column="salary", datatype="number", operator="contains", value=100
+    )
+    assert cond.value == 100
 
 
 def test_numeric_in_with_array():
@@ -36,9 +35,11 @@ def test_numeric_in_with_array():
 
 
 def test_numeric_in_with_string():
-    with pytest.raises(ValidationError) as exc:
-        FilterCondition(column="salary", datatype="number", operator="in", value="abc")
-    assert "must be a list for operator" in str(exc.value)
+    """Strings (comma-separated values) are accepted by IN — the backend splits them."""
+    cond = FilterCondition(
+        column="salary", datatype="number", operator="in", value="1000, 2000, 3000"
+    )
+    assert cond.value == "1000, 2000, 3000"
 
 
 def test_numeric_is_null():
@@ -92,12 +93,12 @@ def test_date_between_valid():
     assert cond.value == ["2024-01-01", "2024-02-01"]
 
 
-def test_date_contains_invalid():
-    with pytest.raises(ValidationError) as exc:
-        FilterCondition(
-            column="created_date", datatype="date", operator="contains", value="2024"
-        )
-    assert "not allowed for datatype" in str(exc.value)
+def test_date_contains_valid():
+    """Date columns support contains via TO_CHAR() casting in the backend."""
+    cond = FilterCondition(
+        column="created_date", datatype="date", operator="contains", value="2024"
+    )
+    assert cond.value == "2024"
 
 
 def test_timestamp_greater_equal_valid():
@@ -120,15 +121,15 @@ def test_timestamp_between_valid():
     assert cond.value == ["t1", "t2"]
 
 
-def test_timestamp_starts_with_invalid():
-    with pytest.raises(ValidationError) as exc:
-        FilterCondition(
-            column="updated_at",
-            datatype="timestamp",
-            operator="starts_with",
-            value="2024",
-        )
-    assert "not allowed for datatype" in str(exc.value)
+def test_timestamp_starts_with_valid():
+    """Timestamp columns support starts_with via TO_CHAR() casting in the backend."""
+    cond = FilterCondition(
+        column="updated_at",
+        datatype="timestamp",
+        operator="starts_with",
+        value="2024",
+    )
+    assert cond.value == "2024"
 
 
 def test_between_invalid_length():
@@ -140,3 +141,25 @@ def test_between_invalid_length():
             value=["2024-01-01"],
         )
     assert "EXACTLY 2 items" in str(exc.value)
+
+
+def test_string_between_valid():
+    """String columns now support between for frontend date defaulting."""
+    cond = FilterCondition(
+        column="name",
+        datatype="string",
+        operator="between",
+        value=["A", "Z"],
+    )
+    assert cond.value == ["A", "Z"]
+
+
+def test_number_between_valid():
+    """Number columns support between for range filtering."""
+    cond = FilterCondition(
+        column="salary",
+        datatype="number",
+        operator="between",
+        value=[1000, 5000],
+    )
+    assert cond.value == [1000, 5000]

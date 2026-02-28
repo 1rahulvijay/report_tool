@@ -17,6 +17,7 @@ To register a new partitioned table, add an entry to PARTITION_MAP:
 from typing import Optional, Dict, Any
 import json
 import os
+from app.core.logger import logger
 
 # Path to the external configuration file
 CONFIG_PATH = os.path.join(
@@ -37,7 +38,7 @@ def _load_config() -> Dict[str, Dict[str, Any]]:
 
     if not os.path.exists(CONFIG_PATH):
         # Fallback to empty if not found, to avoid breaking the app
-        print(f"Warning: Partition config not found at {CONFIG_PATH}")
+        logger.warning(f"Partition config not found at {CONFIG_PATH}")
         return {}
 
     try:
@@ -48,11 +49,11 @@ def _load_config() -> Dict[str, Dict[str, Any]]:
                 _cached_config = json.load(f)
             _cached_mtime = current_mtime
 
-            # Normalize keys to lowercase for case-insensitive matching
-            _cached_config = {k.lower(): v for k, v in _cached_config.items()}
+            # Normalize keys to uppercase for case-insensitive matching
+            _cached_config = {k.upper(): v for k, v in _cached_config.items()}
 
     except Exception as e:
-        print(f"Error loading partition config from {CONFIG_PATH}: {e}")
+        logger.warning(f"Error loading partition config from {CONFIG_PATH}: {e}")
         # Keep using the old cache if there was a JSON parsing error
 
     return _cached_config
@@ -64,7 +65,7 @@ def get_partition_config(dataset: str) -> Optional[Dict[str, Any]]:
     Falls back to table-name-only if full qualified name not found.
     """
     config_map = _load_config()
-    key = dataset.lower()
+    key = dataset.upper()
     # 1. Try exact match (e.g. 'mgbcm.real_data_1')
     if key in config_map:
         return config_map[key]

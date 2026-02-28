@@ -1,0 +1,89 @@
+{
+    "_comment": "Table & Column display name mapping. Edit this file to customize how table and column names appear in the UI.",
+    "tables": {
+        "MGBCM.REAL_DATA_1": {
+            "display_name": "BCM Report Data 1",
+            "columns": {
+                "LOADID": {
+                    "display_name": "Load ID"
+                },
+                "AS_OF_MONTH_SK": {
+                    "display_name": "Report Month"
+                },
+                "LOAD_TYPE": {
+                    "display_name": "Load Frequency"
+                }
+            }
+        },
+        "MGBCM.REAL_DATA_2": {
+            "display_name": "BCM Report Data 2",
+            "columns": {
+                "LOADID": {
+                    "display_name": "Load ID"
+                },
+                "AS_OF_MONTH_SK": {
+                    "display_name": "Report Month"
+                },
+                "LOAD_TYPE": {
+                    "display_name": "Load Frequency"
+                }
+            }
+        },
+        "MGBCM.REAL_DATA_3": {
+            "display_name": "BCM Report Data 3",
+            "columns": {
+                "LOADID": {
+                    "display_name": "Load ID"
+                },
+                "AS_OF_MONTH_SK": {
+                    "display_name": "Report Month"
+                },
+                "LOAD_TYPE": {
+                    "display_name": "Load Frequency"
+                }
+            }
+        },
+        "MGLOBE.REAL_DATA_1": {
+            "display_name": "Globe Report Data 1",
+            "columns": {
+                "LOADID": {
+                    "display_name": "Load ID"
+                },
+                "AS_OF_MONTH_SK": {
+                    "display_name": "Report Month"
+                },
+                "LOAD_TYPE": {
+                    "display_name": "Load Frequency"
+                }
+            }
+        },
+        "MGLOBE.REAL_DATA_2": {
+            "display_name": "Globe Report Data 2",
+            "columns": {
+                "LOADID": {
+                    "display_name": "Load ID"
+                },
+                "AS_OF_MONTH_SK": {
+                    "display_name": "Report Month"
+                },
+                "LOAD_TYPE": {
+                    "display_name": "Load Frequency"
+                }
+            }
+        },
+        "MGLOBE.REAL_DATA_3": {
+            "display_name": "Globe Report Data 3",
+            "columns": {
+                "LOADID": {
+                    "display_name": "Load ID"
+                },
+                "AS_OF_MONTH_SK": {
+                    "display_name": "Report Month"
+                },
+                "LOAD_TYPE": {
+                    "display_name": "Load Frequency"
+                }
+            }
+        }
+    }
+}

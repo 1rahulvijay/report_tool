@@ -49,6 +49,7 @@ class AggregationState(JoinState):
             f"{self.selected_dataset}.{c['name']}" for c in primary_cols
         ]
         self.page_number = 1
+        self._sync_all_columns()  # CRITICAL: Rebuild schema to remove ghost agg columns like 'sum'
         yield
         from frontend.state import AppState
 
@@ -57,6 +58,7 @@ class AggregationState(JoinState):
     async def reset_all(self):
         """Resets filters, joins, and aggregations."""
         self.active_filters = {"type": "group", "logic": "AND", "conditions": []}
+        self.header_filters = {}
         self.joins = []
         self.aggregation_group_by = []
         self.aggregations = []
@@ -80,6 +82,13 @@ class AggregationState(JoinState):
 
     async def apply_aggregations(self):
         """Closes the modal and refreshes data with aggregations."""
+        # Validation: check for empty output_name
+        for agg in self.aggregations:
+            if not agg.get("output_name") or str(agg.get("output_name")).strip() == "":
+                self.error_message = "Output Column Name cannot be empty. Please provide a name for all aggregations."
+                return
+
+        self.error_message = ""
         self.is_aggregation_modal_open = False
         self.page_number = 1
         self.query_results = []
@@ -151,5 +160,10 @@ class AggregationState(JoinState):
         self.page_number = 1
         self.query_results = []
         from frontend.state import AppState
+        from frontend.state_modules.preset_state import PresetState
+
+        preset_state = await self.get_state(PresetState)
+        async for _ in preset_state.execute_preset_queries(force=True):
+            yield
 
         yield AppState.execute_query(force=True)

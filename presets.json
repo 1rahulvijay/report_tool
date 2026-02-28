@@ -1,0 +1,115 @@
+{
+    "GLOBAL_SALES_ORDERS": {
+        "presets": [
+            {
+                "id": "chart_1",
+                "title": "Revenue Trend",
+                "sql": "SELECT ORDER_DATE, SUM(REVENUE) AS TOTAL_REVENUE FROM {TABLE_NAME} {WHERE_CLAUSE} GROUP BY ORDER_DATE ORDER BY ORDER_DATE",
+                "description": "Daily revenue aggregation over time.",
+                "type": "area",
+                "x_axis_col": "ORDER_DATE",
+                "y_axis_cols": [
+                    "TOTAL_REVENUE"
+                ],
+                "show_legend": false
+            },
+            {
+                "id": "chart_2",
+                "title": "Units Sold by Category",
+                "sql": "SELECT PRODUCT_CATEGORY, SUM(UNITS_SOLD) AS TOTAL_UNITS FROM {TABLE_NAME} {WHERE_CLAUSE} GROUP BY PRODUCT_CATEGORY ORDER BY TOTAL_UNITS DESC",
+                "description": "Sales volume distribution across product categories.",
+                "type": "horizontal_bar",
+                "x_axis_col": "PRODUCT_CATEGORY",
+                "y_axis_cols": [
+                    "TOTAL_UNITS"
+                ],
+                "show_legend": false
+            },
+            {
+                "id": "chart_3",
+                "title": "Regional Performance",
+                "sql": "SELECT REGION, SUM(REVENUE) AS TOTAL_REVENUE, SUM(UNITS_SOLD) AS TOTAL_UNITS FROM {TABLE_NAME} {WHERE_CLAUSE} GROUP BY REGION ORDER BY TOTAL_REVENUE DESC",
+                "description": "Revenue and volume breakdown by geographic region.",
+                "type": "scatter",
+                "x_axis_col": "REGION",
+                "y_axis_cols": [
+                    "TOTAL_REVENUE",
+                    "TOTAL_UNITS"
+                ],
+                "show_legend": true
+            },
+            {
+                "id": "chart_4",
+                "title": "Daily Transactions",
+                "sql": "SELECT ORDER_DATE, COUNT(ORDER_ID) AS ORDER_COUNT FROM {TABLE_NAME} {WHERE_CLAUSE} GROUP BY ORDER_DATE ORDER BY ORDER_DATE",
+                "description": "Total number of orders processed per day.",
+                "type": "bar",
+                "x_axis_col": "ORDER_DATE",
+                "y_axis_cols": [
+                    "ORDER_COUNT"
+                ],
+                "show_legend": false
+            }
+        ]
+    },
+    "EMPLOYEE_ROSTER": {
+        "presets": [
+            {
+                "id": "chart_1",
+                "title": "Headcount & Avg Salary by Department",
+                "sql": "SELECT DEPARTMENT, AVG(SALARY) AS AVG_SALARY, COUNT(EMP_ID) AS EMP_COUNT FROM {TABLE_NAME} {WHERE_CLAUSE} GROUP BY DEPARTMENT ORDER BY AVG_SALARY DESC",
+                "description": "Average compensation and employee headcounts across different organizational departments.",
+                "type": "stacked_bar",
+                "x_axis_col": "DEPARTMENT",
+                "y_axis_cols": [
+                    "AVG_SALARY",
+                    "EMP_COUNT"
+                ],
+                "show_legend": true
+            },
+            {
+                "id": "chart_2",
+                "title": "Headcount by Role Level",
+                "sql": "SELECT ROLE_LEVEL, COUNT(EMP_ID) AS EMP_COUNT FROM {TABLE_NAME} {WHERE_CLAUSE} GROUP BY ROLE_LEVEL ORDER BY EMP_COUNT DESC",
+                "description": "Employee distribution by seniority and role level.",
+                "type": "horizontal_bar",
+                "x_axis_col": "ROLE_LEVEL",
+                "y_axis_cols": [
+                    "EMP_COUNT"
+                ],
+                "show_legend": false
+            },
+            {
+                "id": "chart_3",
+                "title": "Performance Ratings",
+                "sql": "SELECT PERFORMANCE_SCORE, COUNT(EMP_ID) AS SCORE_COUNT FROM {TABLE_NAME} {WHERE_CLAUSE} GROUP BY PERFORMANCE_SCORE ORDER BY PERFORMANCE_SCORE",
+                "description": "Distribution of performance ratings.",
+                "type": "pie",
+                "x_axis_col": "PERFORMANCE_SCORE",
+                "y_axis_cols": [
+                    "SCORE_COUNT"
+                ],
+                "color_palette": [
+                    "#10b981",
+                    "#3b82f6",
+                    "#f59e0b",
+                    "#ef4444",
+                    "#8b5cf6"
+                ],
+                "show_legend": true
+            },
+            {
+                "id": "chart_4",
+                "title": "Hiring Trend",
+                "sql": "SELECT EXTRACT(YEAR FROM HIRE_DATE) AS HIRE_YEAR, COUNT(EMP_ID) AS HIRES FROM {TABLE_NAME} {WHERE_CLAUSE} GROUP BY EXTRACT(YEAR FROM HIRE_DATE) ORDER BY HIRE_YEAR",
+                "description": "Growth in workforce over time based on hire year.",
+                "type": "bar",
+                "x_axis_col": "HIRE_YEAR",
+                "y_axis_cols": [
+                    "HIRES"
+                ],
+                "show_legend": false
+            }
+        ]
+    }
+}

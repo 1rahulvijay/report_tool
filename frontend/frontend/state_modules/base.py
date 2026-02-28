@@ -1,10 +1,7 @@
 import reflex as rx
 import httpx
 from typing import List, Dict, Any, Optional
-import os
-
-# The base URL where our FastAPI backend is running
-API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8080/api/v1")
+from frontend.config import API_BASE_URL, PAGINATION
 
 
 class BaseState(rx.State):
@@ -25,6 +22,10 @@ class BaseState(rx.State):
     total_row_count: int = 0
     is_loading: bool = False
     is_exporting: bool = False
+
+    # Sorting State
+    sort_column: str = ""
+    sort_direction: str = ""  # "asc" or "desc"
 
     # Join State
     joins: List[Dict[str, Any]] = []
@@ -53,12 +54,24 @@ class BaseState(rx.State):
     new_join_type: str = "inner"
     new_join_conditions: List[Dict[str, str]] = []
 
+    # Advanced Filtering State
+    active_filters: Dict[str, Any] = {"type": "group", "logic": "AND", "conditions": []}
+    is_filter_modal_open: bool = False
+
+    # UI Search State
+    column_search_text: str = ""
+    dataset_search_text: str = ""
+    search_value_text: str = ""
+
     # Pagination State
     page_number: int = 1
-    page_size: int = 10
+    page_size: int = PAGINATION["default_page_size"]
 
     # Error Handling
     error_message: str = ""
+
+    # Column Header Inline Filters (col_name -> filter_text)
+    header_filters: Dict[str, str] = {}
 
     # Async Export State
     export_job_id: str = ""
@@ -72,6 +85,7 @@ class BaseState(rx.State):
     selected_partitions: Dict[str, List[Any]] = {}  # dataset_name -> [selected values]
     partition_unrestricted: bool = False  # "Select All" override
     partition_load_type: str = ""  # Currently selected load type (e.g. "Monthly")
+    selected_row_ids: List[str] = []  # IDs of selected rows across all pages
 
     async def fetch_datasets(self):
         """Fetch available datasets on load."""
@@ -85,6 +99,12 @@ class BaseState(rx.State):
                 data = res.json()
                 self.datasets = data.get("datasets", [])
 
+                # Load presets configuration on app start
+                from .preset_state import PresetState
+
+                preset_state = await self.get_state(PresetState)
+                preset_state.fetch_presets_config()
+
                 # Note: By design, no table is selected by default.
         except Exception as e:
             self.error_message = f"Failed to load datasets: {str(e)}"
@@ -96,6 +116,17 @@ class BaseState(rx.State):
         self.selected_dataset = dataset_name
         self.is_loading = True
         self.error_message = ""
+
+        # Clear ALL state from previous dataset IMMEDIATELY to prevent cross-table errors (TC-SYNC-01)
+        self.header_filters = {}
+        self.active_filters = {"type": "group", "logic": "AND", "conditions": []}
+        self.sort_column = ""
+        self.sort_direction = ""
+        self.page_number = 1
+        self.joins = []
+        self.visible_columns = []
+        self.query_results = []
+        self.total_row_count = 0
 
         try:
             async with httpx.AsyncClient() as client:
@@ -138,14 +169,21 @@ class BaseState(rx.State):
 
                 AppState._sync_all_columns(self)
 
-                # Clear joins when primary dataset changes
-                self.joins = []
-
-                # Reset pagination on dataset change
-                self.page_number = 1
+                # Reset aggregations
+                self.aggregation_group_by = []
+                self.aggregations = []
 
                 self.query_results = []  # Reset results for new dataset
                 self.total_row_count = 0
+                self.selected_row_ids = []
+
+                # Update presets for the new dataset
+                from .preset_state import PresetState
+
+                preset_state = await self.get_state(PresetState)
+                async for _ in preset_state.execute_preset_queries():
+                    yield _
+
                 from frontend.state import AppState
 
                 yield AppState.execute_query()
@@ -205,9 +243,13 @@ class BaseState(rx.State):
             }
 
         from frontend.state import AppState
+        from .preset_state import PresetState
 
         self.page_number = 1
         self.query_results = []
+        preset_state = await self.get_state(PresetState)
+        async for _ in preset_state.execute_preset_queries():
+            yield _
         yield AppState.execute_query()
 
     @rx.var
@@ -261,7 +303,11 @@ class BaseState(rx.State):
         self.query_results = []
 
         from frontend.state import AppState
+        from .preset_state import PresetState
 
+        preset_state = await self.get_state(PresetState)
+        async for _ in preset_state.execute_preset_queries():
+            yield _
         yield AppState.execute_query()
 
     @rx.var

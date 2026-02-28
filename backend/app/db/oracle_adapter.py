@@ -1,10 +1,11 @@
 import oracledb
 from typing import Any, Dict, List, Optional
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timezone
 import contextlib
 
 from .base import BaseDatabaseAdapter
+from app.core.logger import logger
 
 
 class OracleAdapter(BaseDatabaseAdapter):
@@ -24,7 +25,7 @@ class OracleAdapter(BaseDatabaseAdapter):
             min=min_pool,
             max=max_pool,
             increment=1,
-            wait_timeout=5000,
+            wait_timeout=2000,  # Fail fast (2s) if pool is exhausted
         )
         self._cache = {}
         self._cache_ttl = 3600  # 1 hour
@@ -34,11 +35,17 @@ class OracleAdapter(BaseDatabaseAdapter):
         Splits a potentially schema-qualified dataset name into (owner, table).
         'MGBCM.REAL_DATA_1' -> ('MGBCM', 'REAL_DATA_1')
         'employee_roster'   -> (self._user, 'EMPLOYEE_ROSTER')
+
+        Supports logical-to-physical mapping via table_config.
         """
-        if "." in dataset_name:
-            parts = dataset_name.split(".", 1)
+        from app.core.table_config import resolve_physical_name
+
+        physical_name = resolve_physical_name(dataset_name)
+
+        if "." in physical_name:
+            parts = physical_name.split(".", 1)
             return parts[0].upper(), parts[1].upper()
-        return self._user, dataset_name.upper()
+        return self._user, physical_name.upper()
 
     def _qualified_table(self, owner: str, table: str) -> str:
         """Returns a quoted schema-qualified table reference: \"OWNER\".\"TABLE\"."""
@@ -47,30 +54,44 @@ class OracleAdapter(BaseDatabaseAdapter):
     @contextlib.contextmanager
     def connection(self):
         """Safe connection context manager with auto-release and retry logic."""
-        import time
-
         max_retries = 3
-        retry_delay = 1.0
 
         for attempt in range(max_retries):
             try:
                 # Add wait_timeout to fail fast if pool is exhausted
-                conn = self.pool.acquire()  # 5 seconds wait
+                conn = self.pool.acquire()
             except oracledb.DatabaseError as e:
-                # ORA-24459 or similar pool exhaustion errors
-                if attempt < max_retries - 1:
-                    time.sleep(retry_delay)
-                    continue
-                raise ValueError(
-                    "Database connection pool exhausted. Please try again in a moment."
-                ) from e
+                error_obj = e.args[0]
+                # ORA-12541: TNS:no listener, or ORA-12170: TNS:Connect timeout
+                # ORA-12537: TNS:connection closed, etc.
+                if isinstance(error_obj, oracledb.DatabaseError) or (
+                    hasattr(error_obj, "code")
+                    and error_obj.code in (12541, 12170, 12537, 28759)
+                ):
+                    raise RuntimeError(
+                        f"Oracle Database is unreachable: {str(e)}"
+                    ) from e
+
+                # Check for pool timeout specifically (DPY-6001 or pool exhausted)
+                if "DPY-6001" in str(e) or "pool exhausted" in str(e).lower():
+                    # Fast 503-style error for pool exhaustion
+                    raise ValueError(
+                        "DATABASE_POOL_EXHAUSTED: All available connections are in use. Please try again in a moment."
+                    )
+
+                # Re-raise generic DB errors
+                raise e
 
             # Yield connection and release it properly. Exceptions occurring inside
             # the yield (query execution) will propagate through seamlessly.
             try:
+                from app.core.logger import logger
+
+                logger.debug("Acquired connection from pool")
                 yield conn
             finally:
                 self.pool.release(conn)
+                logger.debug("Released connection back to pool")
             return
 
     def get_datasets(self) -> List[Dict[str, Any]]:
@@ -144,7 +165,8 @@ class OracleAdapter(BaseDatabaseAdapter):
                             "type": row[1],
                             "row_count": row[2] or 0,
                             "column_count": 0,  # Will be fetched per table
-                            "last_refresh": datetime.utcnow().isoformat() + "Z",
+                            "last_refresh": datetime.now(timezone.utc).isoformat()
+                            + "Z",
                         }
                     )
             self._cache["datasets"] = (datasets, now)
@@ -237,6 +259,55 @@ class OracleAdapter(BaseDatabaseAdapter):
         with self.connection() as conn:
             return pd.read_sql(query, conn, params=params)
 
+    def explain_query(
+        self, query: str, params: Optional[Dict[str, Any]] = None
+    ) -> None:
+        """
+        Executes EXPLAIN PLAN for the query and checks the estimated COST or CARDINALITY.
+        Raises ValueError if the cost exceeds EXPLAIN_PLAN_THRESHOLD.
+        """
+        import uuid
+        from app.core.config import get_settings
+
+        settings = get_settings()
+        stmt_id = f"EQ_{uuid.uuid4().hex[:8]}"
+
+        explain_sql = f"EXPLAIN PLAN SET STATEMENT_ID = '{stmt_id}' FOR {query}"
+        cost_query = (
+            f"SELECT operation, options, object_name, cost, cardinality "
+            f"FROM plan_table WHERE statement_id = '{stmt_id}' AND id = 0"
+        )
+        delete_query = f"DELETE FROM plan_table WHERE statement_id = '{stmt_id}'"
+
+        with self.connection() as conn:
+            with conn.cursor() as cursor:
+                try:
+                    # 1. Generate the explain plan
+                    cursor.execute(explain_sql, params or {})
+
+                    # 2. Read the top-level cost/cardinality (ID = 0 is the SELECT STATEMENT)
+                    cursor.execute(cost_query)
+                    row = cursor.fetchone()
+                    if row:
+                        cost = row[3] or 0
+                        cardinality = row[4] or 0
+
+                        max_allowed = settings.EXPLAIN_PLAN_THRESHOLD
+                        # Oracle costs are abstract, but we flag if either metric exceeds our hard threshold
+                        if cost > max_allowed or cardinality > max_allowed:
+                            raise ValueError(
+                                f"Query rejected: Estimated Cost ({cost}) or Cardinality ({cardinality}) "
+                                f"exceeds the maximum allowed threshold of {max_allowed}. "
+                                f"Please add more specific filters (e.g., date ranges) to narrow the dataset."
+                            )
+                finally:
+                    # 3. Clean up the plan table safely
+                    try:
+                        cursor.execute(delete_query)
+                        conn.commit()
+                    except Exception as e:
+                        logger.warning(f"Failed to clear EXPLAIN plan '{stmt_id}': {e}")
+
     def get_row_count(
         self,
         dataset_name: str,
@@ -252,44 +323,6 @@ class OracleAdapter(BaseDatabaseAdapter):
             with conn.cursor() as cursor:
                 cursor.execute(query, params or {})
                 return cursor.fetchone()[0]
-
-    def explain_query(self, query: str, params: Optional[Dict[str, Any]] = None) -> int:
-        """
-        Runs an EXPLAIN plan against the query and returns the estimated maximum cardinality.
-        Raises ValueError if the cost exceeds the threshold.
-        If EXPLAIN PLAN itself fails, logs a warning and returns 0 (lets the query
-        proceed — the timeout guard provides the safety net).
-        """
-        from app.core.config import get_settings
-        from app.core.logger import logger
-
-        settings = get_settings()
-
-        try:
-            with self.connection() as conn:
-                with conn.cursor() as cursor:
-                    # Oracle explain plan
-                    cursor.execute(f"EXPLAIN PLAN FOR {query}", params or {})
-                    cursor.execute(
-                        "SELECT cardinality FROM plan_table WHERE id = 0 AND statement_id IS NULL"
-                    )
-                    row = cursor.fetchone()
-                    cost = int(row[0]) if row and row[0] is not None else 0
-
-                    if cost > settings.EXPLAIN_PLAN_THRESHOLD:
-                        raise ValueError(
-                            f"Query cost ({cost:,} rows) exceeds maximum allowed threshold ({settings.EXPLAIN_PLAN_THRESHOLD:,} rows). Please add more filters."
-                        )
-                    return cost
-        except ValueError:
-            raise
-        except Exception as e:
-            # If explain fails, log the error but let the query proceed.
-            # The QUERY_TIMEOUT_SECONDS setting acts as the safety net.
-            logger.warning(
-                f"EXPLAIN PLAN failed: {e}. Allowing query to proceed with timeout guard."
-            )
-            return 0
 
     def get_partition_values(
         self,
@@ -373,5 +406,22 @@ class OracleAdapter(BaseDatabaseAdapter):
                         break
                     yield [dict(zip(columns, row)) for row in rows]
 
+    def get_pool_metrics(self) -> Dict[str, int]:
+        """Returns current utilization of the database pool."""
+        return {
+            "pool_max": self.pool.max,
+            "pool_min": self.pool.min,
+            "pool_busy": self.pool.busy,
+            "pool_open": self.pool.opened,
+            "pool_wait_count": self.pool.getwaitcount(),
+        }
+
     def close(self):
-        self.pool.close()
+        from app.core.logger import logger
+
+        logger.info("Closing Oracle connection pool...")
+        try:
+            self.pool.close()
+            logger.info("Oracle connection pool closed successfully.")
+        except Exception as e:
+            logger.error(f"Error closing Oracle connection pool: {e}")

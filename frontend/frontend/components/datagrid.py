@@ -1,16 +1,22 @@
 import reflex as rx
 from frontend.state import AppState
 from frontend.components.join_builder import join_modal
-from frontend.components.filter_modal import filter_modal
+from frontend.components.filter_modal import filter_modal, in_clause_paste_modal
 from frontend.components.aggregation_builder import aggregation_modal
 from frontend.components.data_vintage import data_vintage_bar
+from frontend.config import COLORS, UI_CONFIG
 
 
-def _render_row(row_data: list) -> rx.Component:
+def _render_row(row_tuple: rx.Var) -> rx.Component:
     """Renders a single row in the data grid matching the HTML."""
+    row_data = row_tuple[0]
+    index = row_tuple[1]
+    row_id = row_tuple[2]
     return rx.table.row(
         rx.table.cell(
             rx.checkbox(
+                is_checked=AppState.selected_row_ids.contains(row_id),
+                on_change=lambda _: AppState.toggle_row_selection(index),
                 class_name="w-4 h-4 rounded border-slate-300 dark:border-slate-700 bg-transparent text-primary",
             ),
             class_name="py-4 px-2 text-center",
@@ -19,26 +25,64 @@ def _render_row(row_data: list) -> rx.Component:
             row_data,
             lambda cell: rx.table.cell(
                 cell,
-                class_name="py-4 px-4 text-[13px] font-semibold text-slate-700 dark:text-slate-300",
+                class_name="py-3 px-4 text-[11px] font-normal text-slate-700 dark:text-slate-300",
             ),
         ),
         class_name="hover:bg-slate-50/80 dark:hover:bg-slate-900/60 transition-colors group",
     )
 
 
-def _render_header(col_name: str) -> rx.Component:
-    """Renders a column header cell — table_headers already provides display-ready names."""
+def _render_header(col: dict) -> rx.Component:
+    """Renders a column header cell — col is {"qualified": "...", "display": "..."}."""
+    col_name = col["display"]
+    qualified = col["qualified"]
     return rx.table.column_header_cell(
         rx.box(
             rx.text(col_name),
             rx.icon(
-                tag="arrow-down-up",
+                tag=rx.cond(
+                    AppState.sort_column == qualified,
+                    rx.cond(
+                        AppState.sort_direction == "asc",
+                        "arrow-up",
+                        "arrow-down",
+                    ),
+                    "arrow-down-up",
+                ),
                 size=14,
-                class_name="opacity-0 group-hover:opacity-100 transition-opacity",
+                class_name=rx.cond(
+                    AppState.sort_column == qualified,
+                    "text-primary opacity-100",
+                    "opacity-0 group-hover:opacity-100",
+                ),
+                transition="opacity 0.2s",
             ),
             class_name="flex items-center gap-1.5",
         ),
         class_name="py-5 px-4 table-header-cell font-bold text-slate-400 uppercase tracking-[0.1em] group cursor-pointer hover:text-primary transition-colors",
+        on_click=lambda: AppState.toggle_sort(qualified),
+    )
+
+
+def _render_header_filter(col: dict) -> rx.Component:
+    """Renders an inline filter input below each column header.
+    Triggers query on blur (type freely, click away or Tab to apply)."""
+    qualified = col["qualified"]
+
+    # We must explicitly cast to a Var Dict to safely lookup dynamic string keys in Reflex
+    header_filters_dict = rx.Var.create(AppState.header_filters)
+    # Use reflex to string fallback mechanism or a computed Var if accessing the dictionary
+    # The safest way is to cast the index lookup.
+
+    return rx.table.column_header_cell(
+        rx.input(
+            placeholder="Filter...",
+            value=header_filters_dict[qualified.to(str)],
+            on_change=lambda val: AppState.set_header_filter(qualified, val),
+            on_blur=lambda _val: AppState.apply_header_filters(),
+            class_name="w-full h-7 px-2 text-[10px] bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded focus:ring-1 focus:ring-primary focus:border-primary outline-none text-slate-600 dark:text-slate-300 placeholder-slate-300",
+        ),
+        class_name="py-1 px-4",
     )
 
 
@@ -72,15 +116,34 @@ def datagrid() -> rx.Component:
             rx.box(
                 rx.cond(
                     AppState.has_active_filters
+                    | AppState.has_active_header_filters
                     | (AppState.joins.length() > 0)
                     | (AppState.aggregations.length() > 0),
                     rx.hstack(
+                        rx.cond(
+                            AppState.selected_row_ids.length() > 0,
+                            rx.button(
+                                rx.icon(tag="square-check", size=14),
+                                f"CLEAR SELECTION ({AppState.selected_row_ids.length()})",
+                                on_click=AppState.clear_row_selection,
+                                class_name="px-3 py-1.5 bg-blue-50 text-blue-600 border border-blue-200 rounded-md text-[11px] font-bold flex items-center gap-1.5 cursor-pointer hover:bg-blue-100 transition-colors whitespace-nowrap",
+                            ),
+                        ),
                         rx.cond(
                             AppState.has_active_filters,
                             rx.button(
                                 rx.icon(tag="filter-x", size=14),
                                 "CLEAR FILTERS",
                                 on_click=AppState.clear_filters,
+                                class_name="px-3 py-1.5 bg-orange-50 text-orange-600 border border-orange-200 rounded-md text-[11px] font-bold flex items-center gap-1.5 cursor-pointer hover:bg-orange-100 transition-colors whitespace-nowrap",
+                            ),
+                        ),
+                        rx.cond(
+                            AppState.has_active_header_filters,
+                            rx.button(
+                                rx.icon(tag="filter-x", size=14),
+                                "CLEAR COL FILTERS",
+                                on_click=AppState.clear_header_filters,
                                 class_name="px-3 py-1.5 bg-orange-50 text-orange-600 border border-orange-200 rounded-md text-[11px] font-bold flex items-center gap-1.5 cursor-pointer hover:bg-orange-100 transition-colors whitespace-nowrap",
                             ),
                         ),
@@ -114,25 +177,41 @@ def datagrid() -> rx.Component:
                         class_name="flex items-center gap-2",
                     ),
                 ),
-                rx.button(
-                    rx.icon(tag="link", size=16, class_name="text-slate-500"),
-                    "JOIN",
-                    on_click=AppState.toggle_join_modal,
-                    class_name="flex items-center gap-2 text-xs font-bold text-slate-600 hover:text-primary transition-colors bg-transparent border-none cursor-pointer tracking-wider uppercase",
+                rx.cond(
+                    UI_CONFIG["FEATURES"].get("SHOW_JOIN_BUTTON", True),
+                    rx.hstack(
+                        rx.button(
+                            rx.icon(tag="link", size=16, class_name="text-slate-500"),
+                            "JOIN",
+                            on_click=AppState.toggle_join_modal,
+                            class_name="flex items-center gap-2 text-xs font-bold text-slate-600 hover:text-primary transition-colors bg-transparent border-none cursor-pointer tracking-wider uppercase",
+                        ),
+                        rx.box(class_name="h-5 w-px bg-slate-200 dark:bg-slate-700"),
+                        align="center",
+                        spacing="3",
+                    ),
                 ),
-                rx.box(class_name="h-5 w-px bg-slate-200 dark:bg-slate-700"),
                 rx.button(
                     rx.icon(tag="filter", size=16, class_name="text-slate-500"),
                     "FILTERS",
                     on_click=AppState.toggle_filter_modal,
                     class_name="flex items-center gap-2 text-xs font-bold text-slate-600 hover:text-primary transition-colors bg-transparent border-none cursor-pointer tracking-wider uppercase",
                 ),
-                rx.box(class_name="h-5 w-px bg-slate-200 dark:bg-slate-700"),
-                rx.button(
-                    rx.icon(tag="diamond", size=16, class_name="text-slate-500"),
-                    "BUILDER",
-                    on_click=AppState.toggle_aggregation_modal,
-                    class_name="flex items-center gap-2 text-xs font-bold text-slate-600 hover:text-primary transition-colors bg-transparent border-none cursor-pointer tracking-wider uppercase",
+                rx.cond(
+                    UI_CONFIG["FEATURES"].get("SHOW_BUILDER_BUTTON", True),
+                    rx.hstack(
+                        rx.box(class_name="h-5 w-px bg-slate-200 dark:bg-slate-700"),
+                        rx.button(
+                            rx.icon(
+                                tag="diamond", size=16, class_name="text-slate-500"
+                            ),
+                            "BUILDER",
+                            on_click=AppState.toggle_aggregation_modal,
+                            class_name="flex items-center gap-2 text-xs font-bold text-slate-600 hover:text-primary transition-colors bg-transparent border-none cursor-pointer tracking-wider uppercase",
+                        ),
+                        align="center",
+                        spacing="3",
+                    ),
                 ),
                 class_name="flex items-center gap-3 shrink-0",
             ),
@@ -140,6 +219,7 @@ def datagrid() -> rx.Component:
         ),
         # Inject modals
         filter_modal(),
+        in_clause_paste_modal(),
         join_modal(),
         aggregation_modal(),
         data_vintage_bar(),
@@ -192,7 +272,7 @@ def datagrid() -> rx.Component:
                         ),
                         class_name="h-full",
                     ),
-                    class_name="flex-1 bg-[#f8fafc] flex items-center justify-center p-20",
+                    class_name=f"flex-1 bg-[{COLORS['datagrid_bg_light']}] flex items-center justify-center p-20 {UI_CONFIG['SCROLLBAR_STYLE']}",
                 ),
                 # Data Grid
                 rx.table.root(
@@ -200,17 +280,27 @@ def datagrid() -> rx.Component:
                         rx.table.row(
                             rx.table.column_header_cell(
                                 rx.checkbox(
-                                    class_name="w-4 h-4 rounded border-slate-300 dark:border-slate-700 bg-transparent text-primary"
+                                    is_checked=AppState.page_all_selected,
+                                    on_change=lambda _: AppState.toggle_all_page_rows(),
+                                    class_name="w-4 h-4 rounded border-slate-300 dark:border-slate-700 bg-transparent text-primary",
                                 ),
                                 class_name="w-12 py-5 px-2",
                             ),
                             rx.foreach(AppState.table_headers, _render_header),
                             class_name="border-b border-slate-200 dark:border-slate-800",
                         ),
+                        # Inline filter row below headers
+                        rx.table.row(
+                            rx.table.column_header_cell(
+                                class_name="w-12 py-1 px-2",
+                            ),
+                            rx.foreach(AppState.table_headers, _render_header_filter),
+                            class_name="border-b border-slate-100 dark:border-slate-800/30 bg-slate-50/50 dark:bg-slate-900/30",
+                        ),
                         class_name="sticky top-0 z-10 glass-header",
                     ),
                     rx.table.body(
-                        rx.foreach(AppState.table_data, _render_row),
+                        rx.foreach(AppState.table_data_indexed, _render_row),
                         rx.cond(
                             AppState.is_virtual_scroll,
                             rx.cond(
@@ -241,7 +331,7 @@ def datagrid() -> rx.Component:
                     class_name="w-full text-left border-collapse min-w-[1000px]",
                 ),
             ),
-            class_name="flex-1 overflow-x-auto overflow-y-auto custom-scrollbar custom-scrollbar-force-x px-3 min-h-0 relative z-30 pb-4",
+            class_name=f"flex-1 overflow-x-auto overflow-y-auto scrollbar-gutter-stable {UI_CONFIG['SCROLLBAR_STYLE']} custom-scrollbar-force-x px-3 min-h-0 relative z-30 pb-4",
         ),
         # Sticky Pagination Footer
         rx.cond(
@@ -276,7 +366,7 @@ def datagrid() -> rx.Component:
                             class_name="text-[10px] uppercase tracking-widest text-slate-400",
                         ),
                         rx.select(
-                            ["10", "50", "100", "200"],
+                            ["20", "100", "200"],
                             value=AppState.page_size.to(str),
                             on_change=AppState.set_page_size,
                             class_name="bg-transparent border-none py-0 pl-0 pr-6 text-xs font-bold text-slate-700 dark:text-slate-200 focus:ring-0 cursor-pointer",
@@ -331,8 +421,8 @@ def datagrid() -> rx.Component:
                     ),
                     class_name="flex items-center gap-6",
                 ),
-                class_name="h-16 px-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between bg-white dark:bg-[#0f172a] shrink-0 w-full z-20",
+                class_name=f"h-16 px-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between bg-[{COLORS['white']}] dark:bg-[{COLORS['datagrid_bg_dark']}] shrink-0 w-full z-20",
             ),
         ),
-        class_name="flex-1 overflow-hidden flex flex-col min-h-0 h-full w-full bg-white dark:bg-[#0f172a] relative",
+        class_name=f"flex-1 overflow-hidden flex flex-col min-h-0 h-full w-full bg-white dark:bg-[{COLORS['datagrid_bg_dark']}] relative",
     )

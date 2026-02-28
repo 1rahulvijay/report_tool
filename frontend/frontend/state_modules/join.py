@@ -1,12 +1,9 @@
-import os
-from typing import List, Dict, Any
+from typing import List, Dict
 import reflex as rx
 import httpx
 import copy
-from .filter import FilterState
-
-# The base URL where our FastAPI backend is running
-API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8080/api/v1")
+from .advanced_filters import FilterState
+from frontend.config import API_BASE_URL
 
 
 class JoinState(FilterState):
@@ -20,8 +17,6 @@ class JoinState(FilterState):
             ">",
             "<=",
             ">=",
-            "max",
-            "min",
             "between",
             "in",
             "is null",
@@ -45,8 +40,6 @@ class JoinState(FilterState):
             ">",
             "<=",
             ">=",
-            "max",
-            "min",
             "between",
             "is null",
             "is not null",
@@ -241,44 +234,57 @@ class JoinState(FilterState):
     # Each returns List[List[str]] where inner list is [full_name, display_name]
 
     @staticmethod
-    def _to_pairs(names: list) -> list:
-        """Convert list of qualified names to [[full, display], ...]."""
-        return [[n, n.split(".")[-1] if "." in n else n] for n in names]
+    def _to_pairs_tables(names: list) -> list:
+        """Convert list of table names to [[full, display], ...]."""
+        return [[n, JoinState._display_table_name(n)] for n in names]
+
+    @staticmethod
+    def _to_pairs_columns(names: list) -> list:
+        """Convert list of column names to [[full, TABLE.COLUMN], ...]."""
+
+        def format_name(n: str) -> str:
+            parts = n.split(".")
+            if len(parts) >= 2:
+                # schema.table.col -> table.col
+                return f"{parts[-2]}.{parts[-1]}"
+            return n
+
+        return [[n, format_name(n)] for n in names]
 
     @rx.var
     def join_anchor_display(self) -> List[List[str]]:
         """Join anchor datasets as [full_name, display_name] pairs."""
-        return self._to_pairs(self.join_anchor_datasets)
+        return self._to_pairs_tables(self.join_anchor_datasets)
 
     @rx.var
     def filtered_join_datasets_display(self) -> List[List[str]]:
         """Filtered join datasets as [full_name, display_name] pairs."""
-        return self._to_pairs(self.filtered_join_datasets)
+        return self._to_pairs_tables(self.filtered_join_datasets)
 
     @rx.var
     def filtered_left_col_display(self) -> List[List[str]]:
         """Filtered left column names as [full_name, display_name] pairs."""
-        return self._to_pairs(self.filtered_left_col_names)
+        return self._to_pairs_columns(self.filtered_left_col_names)
 
     @rx.var
     def filtered_right_col_display(self) -> List[List[str]]:
         """Filtered right column names as [full_name, display_name] pairs."""
-        return self._to_pairs(self.filtered_right_col_names)
+        return self._to_pairs_columns(self.filtered_right_col_names)
 
     @rx.var
     def filtered_group_by_display(self) -> List[List[str]]:
         """Filtered group-by columns as [full_name, display_name] pairs."""
-        return self._to_pairs(self.filtered_group_by_columns)
+        return self._to_pairs_columns(self.filtered_group_by_columns)
 
     @rx.var
     def filtered_all_agg_display(self) -> List[List[str]]:
         """Filtered all-agg columns as [full_name, display_name] pairs."""
-        return self._to_pairs(self.filtered_all_agg_columns)
+        return self._to_pairs_columns(self.filtered_all_agg_columns)
 
     @rx.var
     def filtered_filter_col_display(self) -> List[List[str]]:
         """Filtered filter columns as [full_name, display_name] pairs."""
-        return self._to_pairs(self.filtered_filter_columns)
+        return self._to_pairs_columns(self.filtered_filter_columns)
 
     @rx.var
     def preview_column_names(self) -> List[str]:
@@ -544,165 +550,62 @@ class JoinState(FilterState):
         cmap[""] = "string"
         return cmap
 
-    def _flatten_path(self, raw_path: Any) -> List[int]:
-        """Flattens arbitrarily nested lists of path indices received from the frontend."""
-        if isinstance(raw_path, int):
-            return [raw_path]
-        elif isinstance(raw_path, str):
-            try:
-                val = int(raw_path)
-                return [val]
-            except ValueError:
-                return []
-        elif isinstance(raw_path, list):
-            flat = []
-            for item in raw_path:
-                flat.extend(self._flatten_path(item))
-            return flat
-        return []
-
-    async def add_filter_rule(self, raw_path: Any):
-        """Adds a simple rule to the group at the specified path."""
+    def open_in_clause_modal(self, raw_path):
+        """Opens the IN clause paste modal for the filter row at the given path."""
         path = self._flatten_path(raw_path)
-        new_filters = copy.deepcopy(self.active_filters)
-        target = self._get_group_at_path(new_filters, path)
-        new_rule = {
-            "type": "rule",
-            "column": "",
-            "datatype": "string",
-            "operator": "=",
-            "value": "",
-        }
-        target["conditions"].append(new_rule)
-        self.active_filters = new_filters
+        self.in_clause_filter_path = path
+        self.in_clause_paste_text = ""
+        self.in_clause_modal_open = True
+
+    def close_in_clause_modal(self):
+        """Closes the IN clause paste modal."""
+        self.in_clause_modal_open = False
+        self.in_clause_paste_text = ""
+
+    async def apply_in_clause_paste(self):
+        """
+        Parses pasted text into a comma-separated value string and applies it
+        to the filter row that triggered the modal.
+        Auto-detects whether values are integers, floats, or strings.
+        """
+        import re
+        import copy
+
+        raw = self.in_clause_paste_text.strip()
+        if not raw:
+            self.in_clause_modal_open = False
+            return
+
+        # Split on commas, tabs, or newlines
+        items = [
+            item.strip().strip("'\"")
+            for item in re.split(r"[,\t\n\r]+", raw)
+            if item.strip()
+        ]
+
+        if not items:
+            self.in_clause_modal_open = False
+            return
+
+        # Auto-detect: if ALL items are numeric, keep them as-is (backend will parse)
+        # Just join back as comma-separated — the backend query_builder handles parsing
+        value = ", ".join(items)
+
+        # Apply to the filter at the saved path
+        path = self.in_clause_filter_path
+        if path:
+            new_filters = copy.deepcopy(self.active_filters)
+            parent_path = path[:-1]
+            index = path[-1]
+            parent = self._get_group_at_path(new_filters, parent_path)
+
+            if "conditions" in parent and 0 <= index < len(parent["conditions"]):
+                parent["conditions"][index]["value"] = value
+                self.active_filters = new_filters
+
+        self.in_clause_modal_open = False
+        self.in_clause_paste_text = ""
         yield
-
-    async def add_filter_group(self, raw_path: Any):
-        """Adds a nested logical group to the group at the specified path."""
-        path = self._flatten_path(raw_path)
-        new_filters = copy.deepcopy(self.active_filters)
-        target = self._get_group_at_path(new_filters, path)
-        new_group = {"type": "group", "logic": "AND", "conditions": []}
-        target["conditions"].append(new_group)
-        self.active_filters = new_filters
-        yield
-
-    async def remove_filter_item(self, raw_path: Any):
-        """Removes a rule or group at the specified path."""
-        path = self._flatten_path(raw_path)
-        if not path:
-            return  # Cannot remove root group
-
-        new_filters = copy.deepcopy(self.active_filters)
-        parent_path = path[:-1]
-        index = path[-1]
-        parent = self._get_group_at_path(new_filters, parent_path)
-
-        if "conditions" in parent and 0 <= index < len(parent["conditions"]):
-            parent["conditions"].pop(index)
-            self.active_filters = new_filters
-        yield
-
-    async def update_filter_item(self, raw_path: Any, field: str, value: str):
-        """Updates a specific property of a rule at a path."""
-        path = self._flatten_path(raw_path)
-        print(
-            f"DEBUG update_filter_item CALLED: path={path} (type={type(path)}), field={field}, value={value}"
-        )
-        new_filters = copy.deepcopy(self.active_filters)
-        # For update_filter_item, path points to the item itself
-        parent_path = path[:-1]
-        index = path[-1]
-        parent = self._get_group_at_path(new_filters, parent_path)
-
-        # Check if parent has conditions to avoid KeyError on leaf modes
-        if "conditions" in parent and 0 <= index < len(parent["conditions"]):
-            # If changing the column, auto-select a compatible default operator based on the data type
-            if field == "column":
-                col_type = self.column_types.get(value, "string")
-                # Normalize type for frontend consistency
-                if col_type in ["numeric", "int", "float", "decimal", "number"]:
-                    col_type = "number"
-                elif col_type in ["date", "datetime", "timestamp"]:
-                    col_type = "date"
-                else:
-                    col_type = "string"
-
-                parent["conditions"][index]["datatype"] = col_type
-
-                # Default operators per type
-                if col_type == "number":
-                    parent["conditions"][index]["operator"] = "="
-                elif col_type == "date":
-                    parent["conditions"][index]["operator"] = "between"
-                else:
-                    parent["conditions"][index]["operator"] = "="
-                parent["conditions"][index]["value"] = ""
-
-            parent["conditions"][index][field] = value
-
-            # TC-OP-03: Ghost Value State Wipe
-            # If changing to a unary operator, clear the value field
-            unary_ops = ["is null", "is not null", "is empty", "is not empty"]
-            if field == "operator" and value in unary_ops:
-                parent["conditions"][index]["value"] = ""
-
-            self.active_filters = new_filters
-        yield
-
-    async def update_filter_between_date(self, raw_path: Any, part: str, value: str):
-        """Updates the start or end of a between date range value (comma-separated)."""
-        path = self._flatten_path(raw_path)
-        new_filters = copy.deepcopy(self.active_filters)
-        parent_path = path[:-1]
-        index = path[-1]
-        parent = self._get_group_at_path(new_filters, parent_path)
-
-        if "conditions" in parent and 0 <= index < len(parent["conditions"]):
-            current_value = parent["conditions"][index].get("value", "")
-            parts = (
-                current_value.split(",")
-                if "," in current_value
-                else [current_value, ""]
-            )
-            if len(parts) < 2:
-                parts.append("")
-
-            if part == "start":
-                parts[0] = value.strip()
-            else:
-                parts[1] = value.strip()
-
-            parent["conditions"][index]["value"] = f"{parts[0]},{parts[1]}"
-            self.active_filters = new_filters
-        yield
-
-    async def set_filter_logic(self, raw_path: Any, val: str):
-        """Sets the logic (AND/OR) for a group at a path."""
-        path = self._flatten_path(raw_path)
-        new_filters = copy.deepcopy(self.active_filters)
-        target = self._get_group_at_path(new_filters, path)
-        target["logic"] = "OR" if val in ["Match ANY", "OR"] else "AND"
-        self.active_filters = new_filters
-        yield
-
-    def _get_group_at_path(
-        self, root: Dict[str, Any], path: List[int]
-    ) -> Dict[str, Any]:
-        """Helper to navigate the recursive structure using a list of indices."""
-        curr = root
-        for idx in path:
-            # We assume the path always leads to a group item
-            curr = curr["conditions"][idx]
-        return curr
-
-    async def clear_filters(self):
-        """Resets the advanced filters and queries."""
-        self.active_filters = {"type": "group", "logic": "AND", "conditions": []}
-        yield
-        from frontend.state import AppState
-
-        yield AppState.execute_query(force=True)
 
     async def clear_joins(self):
         """Clears all configured joins and resets the related columns."""

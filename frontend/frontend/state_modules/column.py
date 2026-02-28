@@ -1,11 +1,3 @@
-import reflex as rx
-import httpx
-from typing import List, Dict, Any, Optional
-import os
-
-# The base URL where our FastAPI backend is running
-API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8080/api/v1")
-
 from .base import BaseState
 
 
@@ -43,16 +35,6 @@ class ColumnState(BaseState):
         else:
             await self.select_all_columns()
 
-    # Advanced Filtering State
-    # Represents the root LogicalGroup: {"logic": "AND", "conditions": []}
-    active_filters: Dict[str, Any] = {"type": "group", "logic": "AND", "conditions": []}
-    is_filter_modal_open: bool = False
-
-    # UI Search State
-    column_search_text: str = ""
-    dataset_search_text: str = ""
-    search_value_text: str = ""
-
     # Modal Search State
     join_table_search: str = ""
     join_left_col_search: str = ""
@@ -60,6 +42,11 @@ class ColumnState(BaseState):
     agg_group_by_search: str = ""
     agg_metrics_search: str = ""
     filter_col_search: str = ""
+
+    # IN clause paste modal state
+    in_clause_modal_open: bool = False
+    in_clause_paste_text: str = ""
+    in_clause_filter_path: list[int] = []
 
     def set_join_table_search(self, text: str):
         self.join_table_search = text

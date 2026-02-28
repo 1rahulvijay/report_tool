@@ -1,4 +1,5 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import logging
@@ -8,6 +9,8 @@ from app.api.endpoints import router as query_router
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from app.core.rate_limit import limiter
+from starlette.middleware.base import BaseHTTPMiddleware
+import uuid
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +73,9 @@ async def lifespan(app: FastAPI):
     logger.info("Shutting down Aurora Reporting Engine...")
     from app.db.factory import close_database_adapter
 
+    logger.info("Initiating database adapter shutdown...")
     close_database_adapter()
+    logger.info("Application shutdown complete.")
 
 
 app = FastAPI(
@@ -84,6 +89,23 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
+
+# Global handler: fail fast with 503 when DB pool is exhausted
+
+
+@app.exception_handler(ValueError)
+async def pool_exhaustion_handler(request: Request, exc: ValueError):
+    if "DATABASE_POOL_EXHAUSTED" in str(exc):
+        logger.warning(f"503 Pool Exhausted: {exc}")
+        return JSONResponse(
+            status_code=503,
+            content={"detail": str(exc)},
+            headers={"Retry-After": "5"},
+        )
+    # Re-raise non-pool ValueErrors as 500
+    raise exc
+
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[origin.strip() for origin in get_settings().ALLOWED_ORIGINS],
@@ -92,9 +114,34 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+class CorrelationIdMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        correlation_id = request.headers.get("X-Correlation-ID", str(uuid.uuid4()))
+        request.state.correlation_id = correlation_id
+        response = await call_next(request)
+        response.headers["X-Correlation-ID"] = correlation_id
+        return response
+
+
+app.add_middleware(CorrelationIdMiddleware)
+
 app.include_router(query_router, prefix="/api/v1", tags=["Query Engine"])
 
 
 @app.get("/health")
 def health_check():
     return {"status": "ok"}
+
+
+@app.get("/metrics")
+def get_metrics(settings=Depends(get_settings)):
+    """Expose basic application and DB metrics."""
+    db = get_database_adapter()
+    metrics = {
+        "app_name": settings.APP_NAME,
+        "environment": settings.ENVIRONMENT,
+    }
+    if hasattr(db, "get_pool_metrics"):
+        metrics["db_pool"] = db.get_pool_metrics()
+    return metrics

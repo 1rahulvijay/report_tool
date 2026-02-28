@@ -41,6 +41,9 @@ def db():
         adapter = OracleAdapter(
             user=user, password=password, dsn=dsn, min_pool=1, max_pool=5
         )
+        # Attempt connection immediately to trigger skip
+        with adapter.connection() as _:
+            pass
     except Exception as e:
         pytest.skip(f"Could not connect to Oracle: {e}")
     yield adapter

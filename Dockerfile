@@ -56,7 +56,10 @@ RUN chmod +x entrypoint.sh && \
 
 USER 1001
 
-# Expose ports: 8081 (Nginx Reverse Proxy)
-EXPOSE 8081
+# Expose ports: 8081 (Nginx), 8080 (API)
+EXPOSE 8081 8080
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD curl -f http://localhost:8080/health || exit 1
 
 ENTRYPOINT ["./entrypoint.sh"]

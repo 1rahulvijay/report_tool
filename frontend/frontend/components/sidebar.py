@@ -1,8 +1,9 @@
 import reflex as rx
 from frontend.state import AppState
+from frontend.config import COLORS, UI_CONFIG
 
 
-def sidebar() -> rx.Component:
+def sidebar(show_columns: bool = True) -> rx.Component:
     return rx.box(
         rx.box(
             rx.box(
@@ -37,7 +38,7 @@ def sidebar() -> rx.Component:
                     AppState.total_row_count > 1_000_000,
                     rx.box(
                         rx.icon(
-                            tag="alert-triangle",
+                            tag="triangle-alert",
                             size=14,
                             class_name="text-amber-500 shrink-0",
                         ),
@@ -120,86 +121,127 @@ def sidebar() -> rx.Component:
                 ),
                 class_name="h-[35%] flex flex-col mb-4 min-h-0 shrink-0",
             ),
-            rx.box(
-                rx.cond(
-                    AppState.selected_dataset != "",
-                    rx.box(
+            rx.cond(
+                show_columns,
+                rx.box(
+                    rx.cond(
+                        AppState.selected_dataset != "",
                         rx.box(
-                            rx.hstack(
-                                rx.text(
-                                    "COLUMN NAMES",
-                                    class_name="text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap",
-                                ),
+                            rx.box(
                                 rx.hstack(
-                                    rx.cond(
-                                        AppState.columns_changed_from_all,
-                                        rx.button(
-                                            "SELECT ALL",
-                                            on_click=AppState.select_all_columns,
-                                            class_name="text-[9px] px-1.5 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold rounded flex items-center justify-center transition-colors cursor-pointer h-5 min-h-[20px] shadow-none outline-none focus:outline-none shrink-0 whitespace-nowrap",
-                                        ),
-                                        rx.button(
-                                            "SELECT ALL",
-                                            on_click=AppState.select_all_columns,
-                                            class_name="text-[9px] px-1.5 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold rounded flex items-center justify-center transition-colors cursor-pointer h-5 min-h-[20px] shadow-none outline-none focus:outline-none shrink-0 whitespace-nowrap",
-                                        ),
+                                    rx.text(
+                                        "COLUMN NAMES",
+                                        class_name="text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap",
                                     ),
-                                    rx.cond(
-                                        AppState.columns_changed_from_all,
-                                        rx.button(
-                                            "RESET",
-                                            on_click=AppState.select_all_columns,
-                                            class_name="text-[9px] px-1.5 py-1 bg-orange-50 hover:bg-orange-100 text-orange-600 font-bold rounded flex items-center justify-center border border-orange-200 transition-colors cursor-pointer h-5 min-h-[20px] shadow-none outline-none focus:outline-none shrink-0 whitespace-nowrap",
+                                    rx.hstack(
+                                        rx.cond(
+                                            AppState.aggregations.length() == 0,
+                                            rx.hstack(
+                                                rx.cond(
+                                                    AppState.columns_changed_from_all,
+                                                    rx.button(
+                                                        "SELECT ALL",
+                                                        on_click=AppState.select_all_columns,
+                                                        class_name="text-[9px] px-1.5 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold rounded flex items-center justify-center transition-colors cursor-pointer h-5 min-h-[20px] shadow-none outline-none focus:outline-none shrink-0 whitespace-nowrap",
+                                                    ),
+                                                    rx.button(
+                                                        "SELECT ALL",
+                                                        on_click=AppState.select_all_columns,
+                                                        class_name="text-[9px] px-1.5 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold rounded flex items-center justify-center transition-colors cursor-pointer h-5 min-h-[20px] shadow-none outline-none focus:outline-none shrink-0 whitespace-nowrap",
+                                                    ),
+                                                ),
+                                                # Use RESET/UNSELECT logic appropriately... inherited from user state
+                                                rx.cond(
+                                                    AppState.columns_changed_from_all,
+                                                    rx.button(
+                                                        "RESET",
+                                                        on_click=AppState.select_all_columns,
+                                                        class_name="text-[9px] px-1.5 py-1 bg-orange-50 hover:bg-orange-100 text-orange-600 font-bold rounded flex items-center justify-center border border-orange-200 transition-colors cursor-pointer h-5 min-h-[20px] shadow-none outline-none focus:outline-none shrink-0 whitespace-nowrap",
+                                                    ),
+                                                    rx.button(
+                                                        "UNSELECT ALL",
+                                                        on_click=AppState.unselect_all_columns,
+                                                        class_name="text-[9px] px-1.5 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold rounded flex items-center justify-center transition-colors cursor-pointer h-5 min-h-[20px] shadow-none outline-none focus:outline-none shrink-0 whitespace-nowrap",
+                                                    ),
+                                                ),
+                                                align="center",
+                                                spacing="1",
+                                            ),
+                                            # When aggregation is active — show locked indicator
+                                            rx.box(
+                                                rx.icon(
+                                                    tag="lock",
+                                                    size=12,
+                                                    class_name="text-amber-500 shrink-0",
+                                                ),
+                                                rx.text(
+                                                    "AGG ACTIVE",
+                                                    class_name="text-[9px] font-bold text-amber-600",
+                                                ),
+                                                class_name="flex items-center gap-1 bg-amber-50 border border-amber-200 rounded px-2 py-0.5",
+                                            ),
                                         ),
-                                        rx.button(
-                                            "UNSELECT ALL",
-                                            on_click=AppState.unselect_all_columns,
-                                            class_name="text-[9px] px-1.5 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold rounded flex items-center justify-center transition-colors cursor-pointer h-5 min-h-[20px] shadow-none outline-none focus:outline-none shrink-0 whitespace-nowrap",
-                                        ),
+                                        align="center",
+                                        spacing="1",
+                                        class_name="shrink-0",
                                     ),
                                     align="center",
-                                    spacing="1",
-                                    class_name="shrink-0",
+                                    justify="between",
+                                    class_name="w-full mb-2 shrink-0 px-1 py-1 gap-y-2 flex-wrap",
                                 ),
-                                align="center",
-                                justify="between",
-                                class_name="w-full mb-4 shrink-0 px-1 py-1 gap-y-2 flex-wrap",
-                            ),
-                            rx.box(
-                                rx.icon(
-                                    tag="search",
-                                    size=18,
-                                    class_name="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-primary transition-colors",
-                                ),
-                                rx.input(
-                                    placeholder="Search columns...",
-                                    value=AppState.column_search_text,
-                                    on_change=AppState.set_column_search_text,
-                                    class_name="w-full bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 rounded-lg pl-10 pr-4 py-2 text-xs focus:ring-primary focus:border-primary focus:bg-white dark:focus:bg-slate-900 transition-all outline-none",
-                                ),
-                                class_name="relative group mb-5 shrink-0",
-                            ),
-                            rx.box(
-                                rx.vstack(
-                                    rx.foreach(
-                                        AppState.filtered_columns, column_toggle_item
+                                # Aggregation lock info banner
+                                rx.cond(
+                                    AppState.aggregations.length() > 0,
+                                    rx.box(
+                                        rx.icon(
+                                            tag="info",
+                                            size=12,
+                                            class_name="text-blue-500 shrink-0",
+                                        ),
+                                        rx.text(
+                                            "Column selection is locked while aggregations are active. Only grouped columns are visible.",
+                                            class_name="text-[10px] text-blue-600 dark:text-blue-400",
+                                        ),
+                                        class_name="flex items-start gap-2 p-2 mb-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg",
                                     ),
-                                    spacing="3",
-                                    width="100%",
                                 ),
-                                class_name="space-y-3 flex-1 min-h-0 overflow-y-auto custom-scrollbar pr-2 border border-slate-200 dark:border-slate-800 rounded-lg p-2",
+                                rx.box(
+                                    rx.icon(
+                                        tag="search",
+                                        size=18,
+                                        class_name="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-primary transition-colors",
+                                    ),
+                                    rx.input(
+                                        placeholder="Search columns...",
+                                        value=AppState.column_search_text,
+                                        on_change=AppState.set_column_search_text,
+                                        class_name="w-full bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 rounded-lg pl-10 pr-4 py-2 text-xs focus:ring-primary focus:border-primary focus:bg-white dark:focus:bg-slate-900 transition-all outline-none",
+                                    ),
+                                    class_name="relative group mb-5 shrink-0",
+                                ),
+                                rx.box(
+                                    rx.vstack(
+                                        rx.foreach(
+                                            AppState.filtered_columns,
+                                            column_toggle_item,
+                                        ),
+                                        spacing="3",
+                                        width="100%",
+                                    ),
+                                    class_name="space-y-3 flex-1 min-h-0 overflow-y-auto custom-scrollbar pr-2 border border-slate-200 dark:border-slate-800 rounded-lg p-2",
+                                ),
+                                class_name="flex flex-col min-h-0 h-full",
                             ),
-                            class_name="flex flex-col min-h-0 h-full",
+                            class_name="h-full",
                         ),
-                        class_name="h-full",
+                        rx.box(),
                     ),
-                    rx.box(),
+                    class_name="flex-1 h-[65%] flex flex-col min-h-0",
                 ),
-                class_name="flex-1 h-[65%] flex flex-col min-h-0",
             ),
             class_name="p-4 flex flex-col h-full overflow-hidden",
         ),
-        class_name="w-[250px] border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0b1120] flex flex-col shrink-0 z-10 h-full max-h-screen relative",
+        class_name=f"w-[{UI_CONFIG['SIDEBAR_WIDTH']}] border-r border-[{COLORS['border']}] bg-white dark:bg-[{COLORS['bg_dark']}] flex flex-col shrink-0 z-10 h-full relative {UI_CONFIG['SCROLLBAR_STYLE']}",
     )
 
 

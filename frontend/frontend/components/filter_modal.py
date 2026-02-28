@@ -2,6 +2,7 @@ from typing import List, Dict, Any
 import reflex as rx
 from frontend.state import AppState
 from frontend.state_modules.join import JoinState
+from frontend.config import COLORS
 
 
 def _inline_search(placeholder: str, value, on_change) -> rx.Component:
@@ -96,13 +97,14 @@ def _render_filter_row(rule: Dict[str, Any], path: List[int]) -> rx.Component:
                             )
                         ),
                         position="popper",
+                        class_name="max-h-[300px] w-[300px]",
                     ),
                     value=rule["column"],
                     on_change=lambda val: AppState.update_filter_item(
                         path, "column", val
                     ),
                 ),
-                class_name="w-1/3 min-w-[200px]",
+                class_name="w-1/3 min-w-[300px]",
             ),
             # Operator Selection
             rx.box(
@@ -123,6 +125,7 @@ def _render_filter_row(rule: Dict[str, Any], path: List[int]) -> rx.Component:
                                     )
                                 ),
                                 position="popper",
+                                class_name="max-h-[300px]",
                             ),
                             value=rule["operator"],
                             on_change=lambda val: AppState.update_filter_item(
@@ -145,6 +148,7 @@ def _render_filter_row(rule: Dict[str, Any], path: List[int]) -> rx.Component:
                                     )
                                 ),
                                 position="popper",
+                                class_name="max-h-[300px]",
                             ),
                             value=rule["operator"],
                             on_change=lambda val: AppState.update_filter_item(
@@ -166,6 +170,7 @@ def _render_filter_row(rule: Dict[str, Any], path: List[int]) -> rx.Component:
                                 )
                             ),
                             position="popper",
+                            class_name="max-h-[300px]",
                         ),
                         value=rule["operator"],
                         on_change=lambda val: AppState.update_filter_item(
@@ -282,16 +287,29 @@ def _render_filter_row(rule: Dict[str, Any], path: List[int]) -> rx.Component:
                                     rx.Var.create(["in", "not_in"]).contains(
                                         rule["operator"]
                                     ),
-                                    rx.input(
-                                        type="text",
-                                        value=rule["value"],
-                                        placeholder="Comma separated (e.g., 1, 2, 3)",
-                                        on_change=lambda val: (
-                                            AppState.update_filter_item(
-                                                path, "value", val
-                                            )
+                                    rx.hstack(
+                                        rx.input(
+                                            type="text",
+                                            value=rule["value"],
+                                            placeholder="Comma separated (e.g., 1, 2, 3)",
+                                            on_change=lambda val: (
+                                                AppState.update_filter_item(
+                                                    path, "value", val
+                                                )
+                                            ),
+                                            class_name="flex-1 h-10 text-sm border-border-light rounded-lg focus:ring-1 focus:ring-primary",
                                         ),
-                                        class_name="w-full h-10 text-sm border-border-light rounded-lg focus:ring-1 focus:ring-primary",
+                                        rx.box(
+                                            rx.icon(tag="clipboard-paste", size=16),
+                                            on_click=lambda: (
+                                                AppState.open_in_clause_modal(path)
+                                            ),
+                                            class_name="p-2 flex items-center justify-center rounded-lg text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200 cursor-pointer transition-colors shrink-0",
+                                            title="Paste multiple values",
+                                        ),
+                                        spacing="2",
+                                        width="100%",
+                                        align="center",
                                     ),
                                     rx.input(
                                         type="number",
@@ -310,14 +328,27 @@ def _render_filter_row(rule: Dict[str, Any], path: List[int]) -> rx.Component:
                         # Default (String)
                         rx.cond(
                             rx.Var.create(["in", "not_in"]).contains(rule["operator"]),
-                            rx.input(
-                                type="text",
-                                value=rule["value"],
-                                placeholder="Comma separated (e.g., A, B, C)",
-                                on_change=lambda val: AppState.update_filter_item(
-                                    path, "value", val
+                            rx.hstack(
+                                rx.input(
+                                    type="text",
+                                    value=rule["value"],
+                                    placeholder="Comma separated (e.g., A, B, C)",
+                                    on_change=lambda val: AppState.update_filter_item(
+                                        path, "value", val
+                                    ),
+                                    class_name="flex-1 h-10 text-sm border-border-light rounded-lg focus:ring-1 focus:ring-primary",
                                 ),
-                                class_name="w-full h-10 text-sm border-border-light rounded-lg focus:ring-1 focus:ring-primary",
+                                rx.box(
+                                    rx.icon(tag="clipboard-paste", size=16),
+                                    on_click=lambda: AppState.open_in_clause_modal(
+                                        path
+                                    ),
+                                    class_name="p-2 flex items-center justify-center rounded-lg text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200 cursor-pointer transition-colors shrink-0",
+                                    title="Paste multiple values",
+                                ),
+                                spacing="2",
+                                width="100%",
+                                align="center",
                             ),
                             rx.input(
                                 type="text",
@@ -437,12 +468,13 @@ def filter_modal() -> rx.Component:
                         width="100%",
                         align="center",
                     ),
-                    class_name="px-6 py-5 border-b border-[#0f172a] bg-[#0f172a] rounded-t-xl shrink-0",
+                    class_name=f"px-6 py-5 border-b border-[{COLORS['datagrid_bg_dark']}] bg-[{COLORS['datagrid_bg_dark']}] rounded-t-xl shrink-0",
                 ),
                 # Body (Scrollable)
                 rx.box(
                     _render_nested_group(AppState.active_filters, [], 0),
                     class_name="flex-1 overflow-y-auto overflow-x-hidden p-4 bg-slate-50 custom-scrollbar",
+                    style={"overflow": "visible"},
                 ),
                 # Footer
                 rx.hstack(
@@ -477,9 +509,68 @@ def filter_modal() -> rx.Component:
                     ),
                     class_name="px-6 py-4 border-t border-slate-200 bg-white rounded-b-xl shrink-0",
                 ),
-                class_name="relative z-50 w-[800px] max-w-[90vw] max-h-[90vh] p-0 flex flex-col bg-white rounded-xl shadow-2xl border border-slate-200 overflow-hidden",
+                class_name="relative z-50 w-[1000px] max-w-[95vw] max-h-[90vh] flex flex-col bg-white rounded-xl shadow-2xl border border-slate-200 overflow-hidden",
             ),
             class_name="fixed inset-0 flex items-center justify-center p-4 z-50",
+        ),
+        rx.fragment(),
+    )
+
+
+def in_clause_paste_modal() -> rx.Component:
+    """Standalone modal dialog for pasting IN clause values."""
+    return rx.cond(
+        AppState.in_clause_modal_open,
+        rx.box(
+            # Backdrop
+            rx.box(
+                class_name="fixed inset-0 bg-black/40 backdrop-blur-sm z-[60]",
+                on_click=AppState.close_in_clause_modal,
+            ),
+            # Modal
+            rx.box(
+                rx.box(
+                    rx.heading(
+                        "Paste IN Values",
+                        class_name="text-white text-lg font-bold",
+                    ),
+                    rx.text(
+                        "Paste comma, tab, or newline separated values below.",
+                        class_name="text-slate-300 text-sm mt-1",
+                    ),
+                    class_name=f"px-5 py-4 bg-[{COLORS['datagrid_bg_dark']}] rounded-t-xl",
+                ),
+                rx.box(
+                    rx.el.textarea(
+                        value=AppState.in_clause_paste_text,
+                        on_change=AppState.set_in_clause_paste_text,
+                        placeholder="e.g.\n100\n200\n300\n\nor: A, B, C, D",
+                        class_name="w-full h-48 p-3 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none resize-none font-mono",
+                    ),
+                    rx.text(
+                        "Tip: Paste from Excel, CSV, or any list. Values will be automatically split.",
+                        class_name="text-xs text-slate-400 mt-2",
+                    ),
+                    class_name="p-5",
+                ),
+                rx.hstack(
+                    rx.box(
+                        rx.text("Cancel"),
+                        on_click=AppState.close_in_clause_modal,
+                        class_name="px-4 py-2 flex items-center justify-center rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50 border border-slate-200 bg-white cursor-pointer",
+                    ),
+                    rx.box(
+                        rx.text("Apply Values"),
+                        on_click=AppState.apply_in_clause_paste,
+                        class_name="px-5 py-2 flex items-center justify-center rounded-lg text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-500/20 cursor-pointer",
+                    ),
+                    justify="end",
+                    spacing="3",
+                    class_name="px-5 py-4 border-t border-slate-200 bg-slate-50 rounded-b-xl",
+                ),
+                class_name="relative z-[70] w-[500px] max-w-[90vw] bg-white rounded-xl shadow-2xl border border-slate-200 overflow-hidden",
+            ),
+            class_name="fixed inset-0 flex items-center justify-center p-4 z-[60]",
         ),
         rx.fragment(),
     )

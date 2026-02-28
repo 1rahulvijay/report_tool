@@ -1,4 +1,5 @@
 import reflex as rx
+from frontend.config import COLORS, UI_CONFIG
 
 
 def topnav() -> rx.Component:
@@ -20,15 +21,25 @@ def topnav() -> rx.Component:
                 class_name="flex items-center gap-2.5",
             ),
             rx.box(class_name="h-5 w-px bg-slate-800 mx-2"),
-            rx.box(
-                rx.link(
-                    "Data Studio",
-                    href="#",
-                    class_name="text-white font-bold border-b-2 border-primary py-3 hover:text-white transition-colors cursor-pointer",
+            rx.hstack(
+                rx.foreach(
+                    UI_CONFIG["ROUTING_LINKS"],
+                    lambda link: rx.link(
+                        rx.hstack(
+                            rx.icon(tag=link["icon"], size=16),
+                            rx.text(link["name"], size="2", font_weight="medium"),
+                            spacing="2",
+                            align="center",
+                        ),
+                        href=link["path"],
+                        class_name="text-slate-400 hover:text-white transition-colors px-3 py-1.5 rounded-md hover:bg-white/5",
+                    ),
                 ),
-                class_name="flex gap-8 text-[13px] font-medium text-slate-400",
+                spacing="2",
+                align="center",
+                class_name="ml-8",
             ),
             class_name="flex items-center gap-4",
         ),
-        class_name="h-12 bg-[#020617] text-white flex items-center justify-between px-6 border-b border-slate-800/50 shrink-0 z-20 w-full",
+        class_name=f"h-[{UI_CONFIG['NAVBAR_HEIGHT']}] bg-[{COLORS['header_bg']}] text-white flex items-center justify-between px-6 border-b border-slate-800/50 shrink-0 z-20 w-full",
     )

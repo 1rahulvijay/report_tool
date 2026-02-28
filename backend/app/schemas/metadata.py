@@ -9,6 +9,9 @@ class DatasetMetadata(BaseModel):
     """
 
     name: str = Field(..., description="Name of the table or view")
+    display_name: Optional[str] = Field(
+        None, description="User-friendly display name from table_config.json"
+    )
     row_count: int = Field(..., description="Total number of rows in the dataset")
     column_count: int = Field(..., description="Total number of columns in the dataset")
     last_refresh: Optional[str] = Field(
@@ -24,6 +27,9 @@ class ColumnMetadata(BaseModel):
     """
 
     name: str = Field(..., description="Name of the column")
+    display_name: Optional[str] = Field(
+        None, description="User-friendly display name from table_config.json"
+    )
     data_type: str = Field(
         ..., description="Raw database data type (e.g. VARCHAR, INTEGER, DATE)"
     )

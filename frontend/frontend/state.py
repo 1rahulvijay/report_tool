@@ -1,15 +1,16 @@
 import reflex as rx
 import httpx
 from typing import List, Dict, Any
-import os
 import asyncio
 import time
 from .state_modules.aggregation import AggregationState
 
-# The base URL where our FastAPI backend is running
-API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8080/api/v1")
-EXPORT_CSV_TIMEOUT = float(os.getenv("EXPORT_CSV_TIMEOUT", "3000.0"))
-EXPORT_EXCEL_MAX_ROWS = int(os.getenv("EXPORT_EXCEL_MAX_ROWS", "100000"))
+from .config import (
+    API_BASE_URL,
+    EXPORT_CSV_TIMEOUT,
+    EXPORT_EXCEL_MAX_ROWS,
+    QUERY_DEBOUNCE_DELAY,
+)
 
 
 class AppState(AggregationState):
@@ -29,7 +30,7 @@ class AppState(AggregationState):
             # Debounce logic: wait 300ms. If a newer request arrives, abort this one.
             current_time = time.time()
             self._last_query_time = current_time
-            await asyncio.sleep(0.3)
+            await asyncio.sleep(QUERY_DEBOUNCE_DELAY)
 
             if self._last_query_time != current_time:
                 return
@@ -41,13 +42,72 @@ class AppState(AggregationState):
         self.error_message = ""
 
         # Construct the exact Pydantic QueryRequest schema expected by the backend
+        translated_filters = self._get_translated_filters()
+        import json as _json
+
+        print(
+            f"[QUERY DEBUG] translated_filters = {_json.dumps(translated_filters, default=str, indent=2) if translated_filters else 'None'}"
+        )
+
+        # Merge header inline filters (col_name -> contains text) into the filter tree
+        # GUARD: When aggregations are active, only allow filters on GROUP BY columns
+        # to prevent ORA-00979 (not a GROUP BY expression)
+        active_hf = dict(self.header_filters)
+        if active_hf and self.aggregation_group_by:
+            # Normalize GROUP BY column names for matching
+            gb_upper = {g.upper().split(".")[-1] for g in self.aggregation_group_by}
+            active_hf = {
+                k: v
+                for k, v in active_hf.items()
+                if k.upper().split(".")[-1] in gb_upper
+            }
+        if active_hf:
+            # Build a robust lookup map for column metadata.
+            # 1. Qualified names (TABLE.COL)
+            # 2. Stripped names (COL) - fallback
+            # 3. Normalized names (TRANSFORM_COL -> TRANSFORMCOL)
+            lookup_map = {}
+            normalized_lookup = {}
+
+            def normalize(s):
+                return s.upper().replace(" ", "").replace("_", "").replace(".", "")
+
+            for c in self.columns:
+                qualified = c["name"].upper()
+                stripped = qualified.split(".")[-1]
+                lookup_map[qualified] = c
+                if stripped not in lookup_map:
+                    lookup_map[stripped] = c
+
+                # Double down on normalization for tricky joins/aliasing
+                normalized_lookup[normalize(qualified)] = c
+                normalized_lookup[normalize(stripped)] = c
+
+            # Temporarily swap header_filters with the filtered set (for agg-guard)
+            original_hf = self.header_filters
+            self.header_filters = active_hf
+            header_conditions = getattr(
+                self, "_execute_header_filters", lambda x, y: []
+            )(lookup_map, normalized_lookup)
+            self.header_filters = original_hf  # Restore original
+
+            if header_conditions:
+                if translated_filters and translated_filters.get("conditions"):
+                    # Merge into existing filters with AND
+                    translated_filters["conditions"].extend(header_conditions)
+                else:
+                    translated_filters = {
+                        "logic": "AND",
+                        "conditions": header_conditions,
+                    }
+
         payload = {
             "dataset": self.selected_dataset,
             "columns": list(self.visible_columns),
             "joins": self.joins,
             "limit": self.page_size,
             "offset": (self.page_number - 1) * self.page_size,
-            "filters": self._get_translated_filters(),
+            "filters": translated_filters,
             "group_by": self.aggregation_group_by
             if self.aggregation_group_by
             else None,
@@ -60,6 +120,11 @@ class AppState(AggregationState):
             "partition_load_type": self.partition_load_type
             if self.partition_load_type
             else None,
+            "sorting": [
+                {"column": self.sort_column, "direction": self.sort_direction.upper()}
+            ]
+            if self.sort_column and self.sort_direction
+            else None,
         }
 
         try:
@@ -70,16 +135,9 @@ class AppState(AggregationState):
 
                 new_data = data.get("data", [])
 
-                print(
-                    f"DEBUG: execute_query fetched {len(new_data)} rows. virtual_scroll={self.is_virtual_scroll}, page_number={self.page_number}"
-                )
-
                 if self.is_virtual_scroll and self.page_number > 1:
                     # Append for infinite scroll (reassign to trigger Reflex state update)
                     self.query_results = self.query_results + new_data
-                    print(
-                        f"DEBUG: appended new data. Total length is now {len(self.query_results)}"
-                    )
                 else:
                     # Replace for standard pagination or first fetch
                     self.query_results = new_data
@@ -121,6 +179,25 @@ class AppState(AggregationState):
         """Toggle the use of Oracle INMEMORY SQL hints."""
         self.use_oracle_in_memory = not self.use_oracle_in_memory
         async for ev in self.execute_query():
+            yield ev
+
+    async def toggle_sort(self, col_name: str):
+        """Toggles sort between ASC, DESC, and None for a column."""
+        if self.sort_column == col_name:
+            if self.sort_direction == "asc":
+                self.sort_direction = "desc"
+            elif self.sort_direction == "desc":
+                self.sort_column = ""
+                self.sort_direction = ""
+            else:
+                self.sort_direction = "asc"
+        else:
+            self.sort_column = col_name
+            self.sort_direction = "asc"
+
+        self.page_number = 1
+        self.query_results = []
+        async for ev in self.execute_query(force=True):
             yield ev
 
     async def export_excel(self):
@@ -219,9 +296,11 @@ class AppState(AggregationState):
         """Polls the export status endpoint until the job is complete or failed."""
         import asyncio
 
-        max_polls = 300  # 5 minutes at 1s interval
+        from .config import MAX_EXPORT_POLLS, EXPORT_POLLING_INTERVAL
+
+        max_polls = MAX_EXPORT_POLLS
         for _ in range(max_polls):
-            await asyncio.sleep(1)
+            await asyncio.sleep(EXPORT_POLLING_INTERVAL)
             try:
                 async with httpx.AsyncClient() as client:
                     res = await client.get(
@@ -318,6 +397,7 @@ class AppState(AggregationState):
         self.query_results = []
         self.total_row_count = 0
         self.page_number = 1
+        self.selected_row_indices = []
 
     async def set_page_number(self, page: str):
         """Safely set the page number from input string."""
@@ -342,13 +422,45 @@ class AppState(AggregationState):
         except ValueError:
             pass
 
+    def set_header_filter(self, col_name: str, value: str):
+        """Stores an inline column header filter value WITHOUT triggering a query.
+        The query is triggered separately by apply_header_filters (Enter key / blur)."""
+        new_filters = {**self.header_filters}
+        if value and value.strip():
+            new_filters[col_name] = value
+        else:
+            new_filters.pop(col_name, None)
+        self.header_filters = new_filters
+
+    async def apply_header_filters(self):
+        """Applies the current header filters by triggering a query.
+        Called on Enter key press or input blur."""
+        self.page_number = 1
+        async for ev in self.execute_query(force=True):
+            yield ev
+
+    async def clear_header_filters(self):
+        """Clears all inline column header filters."""
+        self.header_filters = {}
+        self.page_number = 1
+        yield
+        async for ev in self.execute_query(force=True):
+            yield ev
+
     async def next_page(self, _=None):
+        # Guard: Don't allow double-trigger while already fetching more rows
+        if self.is_fetching_more:
+            return
         if self.page_number < self.total_pages:
             if self.is_virtual_scroll:
                 self.is_fetching_more = True
+                yield  # Push spinner state to UI before query starts
             self.page_number += 1
-            async for ev in self.execute_query():
+            async for ev in self.execute_query(force=True):
                 yield ev
+        else:
+            # No more pages — ensure we reset fetching state cleanly
+            self.is_fetching_more = False
 
     async def prev_page(self, _=None):
         if self.page_number > 1:
@@ -420,9 +532,14 @@ class AppState(AggregationState):
 
     @rx.var
     def dataset_display_names(self) -> List[str]:
-        """Returns display-only names (table only, no schema) — same order as dataset_names."""
-        names = self.dataset_names
-        return [n.split(".")[-1] if "." in n else n for n in names]
+        """Returns display-only names — uses friendly name from config if available."""
+        result = []
+        for ds in sorted(self.datasets, key=lambda d: d["name"]):
+            display = ds.get("display_name", "")
+            if not display:
+                display = ds["name"].split(".")[-1] if "." in ds["name"] else ds["name"]
+            result.append(display)
+        return result
 
     @rx.var
     def can_export(self) -> bool:
@@ -446,17 +563,27 @@ class AppState(AggregationState):
     @rx.var
     def filtered_datasets_display(self) -> List[List[str]]:
         """Returns [[full_name, display_name], ...] for filtered datasets."""
-        return [
-            [name, name.split(".")[-1] if "." in name else name]
-            for name in self.filtered_datasets
-        ]
+        ds_map = {ds["name"]: ds.get("display_name", "") for ds in self.datasets}
+        result = []
+        for name in self.filtered_datasets:
+            display = ds_map.get(name, "")
+            if not display:
+                display = name.split(".")[-1] if "." in name else name
+            result.append([name, display])
+        return result
 
     @rx.var
     def display_selected_dataset(self) -> str:
-        """Returns selected dataset display name (table only, no schema)."""
+        """Returns selected dataset's friendly display name."""
         ds = self.selected_dataset
         if not ds:
             return ""
+        # Check if we have a display_name from the API
+        for d in self.datasets:
+            if d["name"] == ds:
+                display = d.get("display_name", "")
+                if display:
+                    return display
         return ds.split(".")[-1] if "." in ds else ds
 
     @rx.var
@@ -469,12 +596,16 @@ class AppState(AggregationState):
                 col
                 for col in self.columns
                 if self.column_search_text.lower() in col["name"].lower()
+                or self.column_search_text.lower()
+                in col.get("display_name", col["name"]).lower()
             ]
         )
         result = []
         for col in cols:
             name = col["name"]
-            display = name.split(".")[-1] if "." in name else name
+            display = col.get("display_name", "")
+            if not display:
+                display = name.split(".")[-1] if "." in name else name
             result.append({"name": name, "display_name": display})
         return result
 
@@ -484,25 +615,22 @@ class AppState(AggregationState):
         return self.active_filters.get("conditions", [])
 
     @rx.var
-    def table_headers(self) -> List[str]:
-        """Dynamically computes display-ready header names (column only, no table prefix)."""
-        original_cols = [c["name"] for c in self.columns]
+    def table_headers(self) -> List[Dict[str, str]]:
+        """Dynamically computes display-ready header names and their qualified paths, preserving user order."""
         headers = []
+        col_map = {c["name"]: c for c in self.columns}
 
-        # First add columns that exist in the original schema in defined order
-        for col in self.columns:
-            if col["name"] in self.visible_columns:
-                # Strip table/schema prefix for display
-                name = col["name"]
-                display = name.split(".")[-1] if "." in name else name
-                headers.append(display)
-
-        # Then append any visible columns (like aggregation aliases) that weren't in the original schema
+        # Preserve the exact order defined in visible_columns (critical for dynamic aggregations)
         for vcol in self.visible_columns:
-            if vcol not in original_cols:
+            if vcol in col_map:
+                name = vcol
+                display = col_map[vcol].get("display_name", "")
+                if not display:
+                    display = name.split(".")[-1] if "." in name else name
+                headers.append({"qualified": name, "display": display})
+            else:
                 display = vcol.split(".")[-1] if "." in vcol else vcol
-                if display not in headers:
-                    headers.append(display)
+                headers.append({"qualified": vcol, "display": display})
 
         return headers
 
@@ -518,7 +646,7 @@ class AppState(AggregationState):
 
         for row in self.query_results:
             # Create a case-insensitive lookup for the row. Strip table prefixes from keys entirely
-            # so `LARGE_TABLE_1M_2.ID` just becomes `id` in the lookup dict, and `ID` becomes `id`.
+            # so `LARGE_TABLE_1_2.ID` just becomes `id` in the lookup dict, and `ID` becomes `id`.
             row_lookup = {}
             for k, v in row.items():
                 row_lookup[k.lower()] = v
@@ -527,7 +655,9 @@ class AppState(AggregationState):
 
             row_data = []
             row_matches_search = False
-            for h in headers:
+            for h_dict in headers:
+                h = h_dict["qualified"]
+                display_h = h_dict["display"]
                 # 1. Exact match
                 val = row.get(h)
 
@@ -544,8 +674,17 @@ class AppState(AggregationState):
                     if val is None:
                         val = row_lookup.get(local_h.lower())
 
-                if isinstance(val, float):
-                    val_str = f"{val:.2f}"
+                # 5. Fallback to display header name
+                if val is None:
+                    val = row.get(display_h)
+                    if val is None:
+                        val = row_lookup.get(display_h.lower())
+
+                if isinstance(val, (float, int)):
+                    if isinstance(val, float):
+                        val_str = f"{val:.2f}"
+                    else:
+                        val_str = str(val)
                 else:
                     val_str = str(val) if val is not None else ""
 
@@ -557,3 +696,60 @@ class AppState(AggregationState):
                 data.append(row_data)
 
         return data
+
+    @rx.var
+    def table_data_indexed(self) -> List[tuple[List[str], int, str]]:
+        """Returns the table data enumerable with indices and IDs for the frontend."""
+        return [(row, i, self._get_row_id(i)) for i, row in enumerate(self.table_data)]
+
+    def _get_row_id(self, index: int) -> str:
+        """Attempts to find a unique ID for a row at the given index."""
+        if not (0 <= index < len(self.query_results)):
+            return str(index)
+        row = self.query_results[index]
+        # Look for common ID columns
+        id_cols = ["ID", "LOADID", "ORDER_ID", "EMP_ID", "ROWID"]
+        for col in id_cols:
+            # Check exact and qualified
+            val = row.get(col) or row.get(f"{self.selected_dataset}.{col}")
+            if val is not None:
+                return str(val)
+        # Fallback to stringified row content (stable enough for a single view)
+        return str(hash(frozenset(row.items())))
+
+    def toggle_row_selection(self, index: int):
+        """Toggles a row's selection status using a unique ID."""
+        row_id = self._get_row_id(index)
+        new_ids = list(self.selected_row_ids)
+        if row_id in new_ids:
+            new_ids.remove(row_id)
+        else:
+            new_ids.append(row_id)
+        self.selected_row_ids = new_ids
+
+    def toggle_all_page_rows(self):
+        """Selects or unselects all rows on the current page."""
+        current_page_ids = [self._get_row_id(i) for i in range(len(self.query_results))]
+        # If all current page IDs are in selection, remove them
+        if all(rid in self.selected_row_ids for rid in current_page_ids):
+            self.selected_row_ids = [
+                rid for rid in self.selected_row_ids if rid not in current_page_ids
+            ]
+        else:
+            new_ids = list(self.selected_row_ids)
+            for rid in current_page_ids:
+                if rid not in new_ids:
+                    new_ids.append(rid)
+            self.selected_row_ids = new_ids
+
+    @rx.var
+    def page_all_selected(self) -> bool:
+        """True if all rows on the current page are in the selected_row_ids list."""
+        if not self.query_results:
+            return False
+        current_page_ids = [self._get_row_id(i) for i in range(len(self.query_results))]
+        return all(rid in self.selected_row_ids for rid in current_page_ids)
+
+    def clear_row_selection(self):
+        """Clears all selected rows."""
+        self.selected_row_ids = []

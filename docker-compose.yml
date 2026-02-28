@@ -1,19 +1,25 @@
 version: '3.8'
 
 services:
-  aurora-nexus:
+  # Unified API service - handles all metadata, queries, and strictly streaming exports
+  aurora-api:
     build:
       context: .
       dockerfile: Dockerfile
-      args:
-        # Uncomment and fill if building behind a proxy
-        # - http_proxy=${HTTP_PROXY}
-        # - https_proxy=${HTTPS_PROXY}
-        # - npm_config_registry=${NPM_REGISTRY}
     ports:
       - "80:8081"
       - "8080:8080"
-      - "8000:8000"
+    environment:
+      - WORKER_COUNT=4
+      - ENVIRONMENT=production
+      - ORACLE_MAX_POOL=30 # Increased for 200 concurrent users
+      - PREVIEW_MAX_ROWS=500
+      - QUERY_TIMEOUT_SECONDS=120
     env_file:
       - backend/.env
+    deploy:
+      resources:
+        limits:
+          memory: 6G # Increased to handle in-memory streaming exports
+          cpus: '3.0'
     restart: unless-stopped

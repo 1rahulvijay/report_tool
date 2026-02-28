@@ -1,5 +1,4 @@
-﻿import pytest
-from app.services.query_builder import QueryBuilderService
+﻿from app.services.query_builder import QueryBuilderService
 from app.schemas.query import QueryRequest, FilterCondition, LogicalGroup
 
 
@@ -16,7 +15,7 @@ def test_string_ops_cast_to_varchar():
         ),
     )
     sql, params = builder.build_query(request)
-    assert 'CAST("numeric_col" AS VARCHAR2(4000))) LIKE' in sql
+    assert 'CAST("NUMERIC_COL" AS VARCHAR2(4000))) LIKE UPPER' in sql
 
 
 if __name__ == "__main__":

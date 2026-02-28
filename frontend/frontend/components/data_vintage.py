@@ -6,6 +6,7 @@ Matches the reference design: horizontal bar with labeled sections separated by 
 
 import reflex as rx
 from frontend.state import AppState
+from frontend.config import UI_CONFIG
 
 
 def data_vintage_bar() -> rx.Component:
@@ -137,61 +138,73 @@ def data_vintage_bar() -> rx.Component:
             rx.hstack(
                 # In-Memory Toggle
                 rx.cond(
-                    AppState.use_oracle_in_memory,
-                    rx.button(
-                        rx.icon(tag="zap", size=14),
-                        "In-Memory",
-                        on_click=AppState.toggle_oracle_in_memory,
-                        class_name="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold text-blue-600 bg-blue-50 border border-blue-200 rounded-lg cursor-pointer hover:bg-blue-100 transition-colors",
+                    UI_CONFIG["FEATURES"].get("SHOW_IN_MEMORY_TOGGLE", True),
+                    rx.cond(
+                        AppState.use_oracle_in_memory,
+                        rx.button(
+                            rx.icon(tag="zap", size=14),
+                            "In-Memory",
+                            on_click=AppState.toggle_oracle_in_memory,
+                            class_name="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold text-blue-600 bg-blue-50 border border-blue-200 rounded-lg cursor-pointer hover:bg-blue-100 transition-colors",
+                        ),
+                        rx.button(
+                            rx.icon(tag="zap-off", size=14),
+                            "In-Memory",
+                            on_click=AppState.toggle_oracle_in_memory,
+                            class_name="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold text-slate-500 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-100 transition-colors",
+                        ),
                     ),
-                    rx.button(
-                        rx.icon(tag="zap-off", size=14),
-                        "In-Memory",
-                        on_click=AppState.toggle_oracle_in_memory,
-                        class_name="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold text-slate-500 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-100 transition-colors",
-                    ),
+                    rx.fragment(),
                 ),
                 # Virtual Scroll Toggle
                 rx.cond(
-                    AppState.is_virtual_scroll,
-                    rx.button(
-                        rx.icon(tag="layers", size=14),
-                        "Virtual",
-                        on_click=AppState.toggle_virtual_scroll,
-                        class_name="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-lg cursor-pointer hover:bg-emerald-100 transition-colors",
+                    UI_CONFIG["FEATURES"].get("SHOW_VIRTUAL_SCROLL_TOGGLE", True),
+                    rx.cond(
+                        AppState.is_virtual_scroll,
+                        rx.button(
+                            rx.icon(tag="layers", size=14),
+                            "Virtual",
+                            on_click=AppState.toggle_virtual_scroll,
+                            class_name="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-lg cursor-pointer hover:bg-emerald-100 transition-colors",
+                        ),
+                        rx.button(
+                            rx.icon(tag="table-2", size=14),
+                            "Paginated",
+                            on_click=AppState.toggle_virtual_scroll,
+                            class_name="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold text-slate-500 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-100 transition-colors",
+                        ),
                     ),
-                    rx.button(
-                        rx.icon(tag="table-2", size=14),
-                        "Paginated",
-                        on_click=AppState.toggle_virtual_scroll,
-                        class_name="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold text-slate-500 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-100 transition-colors",
-                    ),
+                    rx.fragment(),
                 ),
                 # Export Menu
-                rx.menu.root(
-                    rx.menu.trigger(
-                        rx.button(
-                            rx.icon(tag="download", size=14),
-                            "Export",
-                            class_name="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold text-slate-700 bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 rounded-lg cursor-pointer border-none hover:bg-slate-800 transition-colors",
-                        )
-                    ),
-                    rx.menu.content(
-                        rx.menu.item(
-                            "Export as Excel (.xlsx)",
-                            on_click=AppState.export_excel,
-                            class_name=rx.cond(
-                                AppState.can_export_excel,
-                                "cursor-pointer",
-                                "cursor-not-allowed text-slate-400",
+                rx.cond(
+                    UI_CONFIG["FEATURES"].get("SHOW_EXPORT_MENU", True),
+                    rx.menu.root(
+                        rx.menu.trigger(
+                            rx.button(
+                                rx.icon(tag="download", size=14),
+                                "Export",
+                                class_name="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold text-slate-700 bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 rounded-lg cursor-pointer border-none hover:bg-slate-800 transition-colors",
+                            )
+                        ),
+                        rx.menu.content(
+                            rx.menu.item(
+                                "Export as Excel (.xlsx)",
+                                on_click=AppState.export_excel,
+                                class_name=rx.cond(
+                                    AppState.can_export_excel,
+                                    "cursor-pointer",
+                                    "cursor-not-allowed text-slate-400",
+                                ),
+                            ),
+                            rx.menu.item(
+                                "Export as CSV (.csv)",
+                                on_click=AppState.export_csv,
+                                class_name="cursor-pointer",
                             ),
                         ),
-                        rx.menu.item(
-                            "Export as CSV (.csv)",
-                            on_click=AppState.export_csv,
-                            class_name="cursor-pointer",
-                        ),
                     ),
+                    rx.fragment(),
                 ),
                 # Export Progress
                 rx.cond(

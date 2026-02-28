@@ -51,6 +51,14 @@ class FilterCondition(BaseModel):
         description="The value to filter against. For 'between', expect a list of 2 items. Can be null for 'is_null'.",
     )
 
+    @model_validator(mode="before")
+    @classmethod
+    def enforce_uppercase(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            if "column" in data and isinstance(data["column"], str):
+                data["column"] = data["column"].upper()
+        return data
+
     @model_validator(mode="after")
     def validate_condition(self) -> "FilterCondition":
         op = self.operator
@@ -65,7 +73,11 @@ class FilterCondition(BaseModel):
                 FilterOperator.GREATER_THAN,
                 FilterOperator.LESS_THAN_EQUAL,
                 FilterOperator.GREATER_THAN_EQUAL,
+                FilterOperator.BETWEEN,
+                FilterOperator.STARTS_WITH,
+                FilterOperator.CONTAINS,
                 FilterOperator.IN,
+                FilterOperator.NOT_IN,
                 FilterOperator.IS_NULL,
                 FilterOperator.IS_NOT_NULL,
             },
@@ -77,8 +89,12 @@ class FilterCondition(BaseModel):
                 FilterOperator.STARTS_WITH,
                 FilterOperator.ENDS_WITH,
                 FilterOperator.IN,
+                FilterOperator.NOT_IN,
                 FilterOperator.IS_NULL,
                 FilterOperator.IS_NOT_NULL,
+                FilterOperator.IS_EMPTY,
+                FilterOperator.IS_NOT_EMPTY,
+                FilterOperator.BETWEEN,
             },
             "date": {
                 FilterOperator.EQUALS,
@@ -88,6 +104,10 @@ class FilterCondition(BaseModel):
                 FilterOperator.LESS_THAN_EQUAL,
                 FilterOperator.GREATER_THAN_EQUAL,
                 FilterOperator.BETWEEN,
+                FilterOperator.CONTAINS,
+                FilterOperator.NOT_CONTAINS,
+                FilterOperator.STARTS_WITH,
+                FilterOperator.ENDS_WITH,
                 FilterOperator.IS_NULL,
                 FilterOperator.IS_NOT_NULL,
             },
@@ -99,6 +119,10 @@ class FilterCondition(BaseModel):
                 FilterOperator.LESS_THAN_EQUAL,
                 FilterOperator.GREATER_THAN_EQUAL,
                 FilterOperator.BETWEEN,
+                FilterOperator.CONTAINS,
+                FilterOperator.NOT_CONTAINS,
+                FilterOperator.STARTS_WITH,
+                FilterOperator.ENDS_WITH,
                 FilterOperator.IS_NULL,
                 FilterOperator.IS_NOT_NULL,
             },
@@ -112,9 +136,13 @@ class FilterCondition(BaseModel):
         if op in [FilterOperator.IS_NULL, FilterOperator.IS_NOT_NULL]:
             return self
 
-        if op == FilterOperator.IN:
-            if not isinstance(val, list):
-                raise ValueError(f"Value must be a list for operator '{op.value}'")
+        if op in [FilterOperator.IN, FilterOperator.NOT_IN]:
+            # Accept both lists and comma-separated strings
+            # The backend _handle_in_arrays splits strings at query time
+            if not isinstance(val, (list, str)):
+                raise ValueError(
+                    f"Value must be a list or comma-separated string for operator '{op.value}'"
+                )
 
         if op == FilterOperator.BETWEEN:
             if not isinstance(val, list) or len(val) != 2:
@@ -148,6 +176,17 @@ class SortCondition(BaseModel):
     column: str = Field(..., description="The column to sort by")
     direction: Literal["ASC", "DESC"] = Field("ASC", description="Sort direction")
 
+    @model_validator(mode="before")
+    @classmethod
+    def enforce_uppercase(cls, data: Any) -> Any:
+        if (
+            isinstance(data, dict)
+            and "column" in data
+            and isinstance(data["column"], str)
+        ):
+            data["column"] = data["column"].upper()
+        return data
+
 
 class JoinType(str, Enum):
     """Supported join types."""
@@ -164,6 +203,16 @@ class JoinOn(BaseModel):
     left_column: str = Field(..., description="Column from the left table/dataset")
     right_column: str = Field(..., description="Column from the right table/dataset")
 
+    @model_validator(mode="before")
+    @classmethod
+    def enforce_uppercase(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            if "left_column" in data and isinstance(data["left_column"], str):
+                data["left_column"] = data["left_column"].upper()
+            if "right_column" in data and isinstance(data["right_column"], str):
+                data["right_column"] = data["right_column"].upper()
+        return data
+
 
 class JoinCondition(BaseModel):
     """A single join operation definition."""
@@ -177,6 +226,16 @@ class JoinCondition(BaseModel):
         JoinType.INNER, description="The type of join to perform"
     )
     on: List[JoinOn] = Field(..., description="One or more column pairs to join on")
+
+    @model_validator(mode="before")
+    @classmethod
+    def enforce_uppercase(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            if "left_dataset" in data and isinstance(data["left_dataset"], str):
+                data["left_dataset"] = data["left_dataset"].upper()
+            if "right_dataset" in data and isinstance(data["right_dataset"], str):
+                data["right_dataset"] = data["right_dataset"].upper()
+        return data
 
 
 class AggregationFunction(str, Enum):
@@ -196,6 +255,17 @@ class AggregationCondition(BaseModel):
     column: str = Field(..., description="The source column to aggregate")
     function: AggregationFunction = Field(..., description="The aggregation function")
     output_name: str = Field(..., description="The alias/name for the resulting metric")
+
+    @model_validator(mode="before")
+    @classmethod
+    def enforce_uppercase(cls, data: Any) -> Any:
+        if (
+            isinstance(data, dict)
+            and "column" in data
+            and isinstance(data["column"], str)
+        ):
+            data["column"] = data["column"].upper()
+        return data
 
 
 class QueryRequest(BaseModel):
@@ -255,6 +325,71 @@ class QueryRequest(BaseModel):
         False,
         description="If true, bypasses column pruning for initial counts/previews",
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def enforce_uppercase(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            if "dataset" in data and isinstance(data["dataset"], str):
+                data["dataset"] = data["dataset"].upper()
+            if "columns" in data and isinstance(data["columns"], list):
+                data["columns"] = [
+                    c.upper() for c in data["columns"] if isinstance(c, str)
+                ]
+            if "group_by" in data and isinstance(data["group_by"], list):
+                data["group_by"] = [
+                    c.upper() for c in data["group_by"] if isinstance(c, str)
+                ]
+        return data
+
+
+class RawQueryRequest(BaseModel):
+    """
+    Simple request for executing a raw SQL query.
+    Used for predefined dashboard presets.
+    """
+
+    sql: str = Field(..., description="The raw SQL to execute")
+    dataset: Optional[str] = Field(
+        None, description="Optional target dataset for context"
+    )
+    params: Optional[Dict[str, Any]] = Field(
+        None, description="Optional parameters for the query"
+    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def enforce_uppercase(cls, data: Any) -> Any:
+        if (
+            isinstance(data, dict)
+            and "dataset" in data
+            and isinstance(data["dataset"], str)
+        ):
+            data["dataset"] = data["dataset"].upper()
+        return data
+
+    @model_validator(mode="after")
+    def validate_sql_safety(self) -> "RawQueryRequest":
+        # Block DML/DDL commands to ensure read-only status for presets
+        forbidden_keywords = [
+            "INSERT ",
+            "UPDATE ",
+            "DELETE ",
+            "DROP ",
+            "ALTER ",
+            "TRUNCATE ",
+            "GRANT ",
+            "REVOKE ",
+            "EXEC ",
+            "CALL ",
+        ]
+        sql_upper = self.sql.upper()
+        for kw in forbidden_keywords:
+            if kw in sql_upper:
+                raise ValueError(
+                    f"Raw SQL execution rejected: Command '{kw.strip()}' is strictly forbidden."
+                )
+        return self
 
 
 class PreviewResponse(BaseModel):

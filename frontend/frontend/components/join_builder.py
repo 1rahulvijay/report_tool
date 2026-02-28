@@ -115,6 +115,7 @@ def join_modal() -> rx.Component:
                                                                 )
                                                             ),
                                                             position="popper",
+                                                            class_name="max-h-[400px] w-full min-w-[350px]",
                                                         ),
                                                         value=AppState.new_join_left_dataset,
                                                         on_change=AppState.set_new_join_left_dataset,
@@ -128,10 +129,12 @@ def join_modal() -> rx.Component:
                                                 ),
                                                 spacing="2",
                                                 align="center",
+                                                width="100%",
+                                                class_name="min-w-0 box-border w-full flex-1 overflow-visible",
                                             ),
-                                            class_name="p-3 border border-border-light rounded-lg bg-slate-50 w-full h-[60px] flex items-center shadow-sm hover:border-primary/30 transition-colors",
+                                            class_name="p-3 border border-border-light rounded-lg bg-slate-50 w-full h-[60px] flex items-center shadow-sm hover:border-primary/30 transition-colors flex-1 min-w-[300px]",
                                         ),
-                                        width="35%",
+                                        width="40%",
                                         align_items="start",
                                     ),
                                     # Join Type Icons
@@ -199,6 +202,7 @@ def join_modal() -> rx.Component:
                                                                 )
                                                             ),
                                                             position="popper",
+                                                            class_name="max-h-[400px] w-full min-w-[350px]",
                                                         ),
                                                         value=AppState.new_join_right_dataset,
                                                         on_change=AppState.set_new_join_right_dataset,
@@ -209,18 +213,18 @@ def join_modal() -> rx.Component:
                                                 spacing="2",
                                                 align="center",
                                                 width="100%",
-                                                class_name="min-w-0 box-border w-full flex-1 overflow-hidden",
+                                                class_name="min-w-0 box-border w-full flex-1 overflow-visible",
                                             ),
-                                            class_name="p-3 border border-border-light rounded-lg bg-slate-50 w-full h-[60px] flex items-center box-border min-w-0",
+                                            class_name="p-3 border border-border-light rounded-lg bg-slate-50 w-full h-[60px] flex items-center box-border min-w-[300px] max-w-full hover:border-primary/30 transition-colors",
                                         ),
-                                        class_name="flex-1 min-w-0 flex flex-col items-start box-border overflow-hidden",
+                                        width="100%",
                                     ),
                                     width="100%",
                                     align="center",
                                     spacing="2",
                                     class_name="flex gap-4",
                                 ),
-                                class_name="bg-white rounded-xl border border-border-light shadow-sm p-4 w-full shrink-0",
+                                class_name="bg-white rounded-xl border border-border-light shadow-sm p-4 w-full shrink-0 overflow-visible",
                             ),
                             # Join Conditions section
                             rx.hstack(
@@ -344,7 +348,7 @@ def join_modal() -> rx.Component:
                             width="100%",
                             class_name="border-t border-slate-200 bg-white shrink-0",
                         ),
-                        class_name="relative flex flex-col w-[800px] max-w-[90vw] max-h-[90vh] p-0 bg-white rounded-xl shadow-2xl border border-slate-200 overflow-hidden",
+                        class_name="relative flex flex-col w-[1000px] max-w-[95vw] max-h-[90vh] p-0 bg-white rounded-xl shadow-2xl border border-slate-200 overflow-hidden",
                     ),
                     class_name="fixed inset-0 flex items-center justify-center p-4 z-50",
                 ),
@@ -475,6 +479,7 @@ def _render_join_condition_row(condition: dict, index: int) -> rx.Component:
                         )
                     ),
                     position="popper",
+                    class_name="max-h-[300px] w-full min-w-[300px]",
                 ),
                 value=condition["left_column"],
                 on_change=lambda val: AppState.update_new_join_condition(
@@ -512,6 +517,7 @@ def _render_join_condition_row(condition: dict, index: int) -> rx.Component:
                         )
                     ),
                     position="popper",
+                    class_name="max-h-[300px] w-full min-w-[300px]",
                 ),
                 value=condition["right_column"],
                 on_change=lambda val: AppState.update_new_join_condition(

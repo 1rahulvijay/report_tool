@@ -34,10 +34,34 @@
     overflow: auto;
 }
 
-/* Force horizontal scrollbar for the table grid */
+/* Force horizontal scrollbar for the table grid - always visible */
 .custom-scrollbar-force-x {
     overflow-x: scroll !important;
+    overflow-y: auto !important;
+    /* Reserve space for scrollbar so content doesn't jump */
+    scrollbar-gutter: stable;
 }
+
+/* Ensure horizontal scrollbar is always present and visible at bottom of viewport */
+.custom-scrollbar-force-x::-webkit-scrollbar {
+    width: 10px;
+    height: 14px !important;
+    display: block !important;
+}
+
+/* Override for horizontal specifically */
+.custom-scrollbar-force-x::-webkit-scrollbar:horizontal {
+    height: 14px;
+    cursor: ew-resize;
+}
+
+/* Glass header fix - need z-index above horizontal scrollbar track */
+.custom-scrollbar-force-x .glass-header {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+}
+
 
 .custom-scrollbar::-webkit-scrollbar-track {
     background: #f1f5f9;

@@ -1,5 +1,6 @@
 import reflex as rx
 from frontend.state import AppState
+from frontend.config import COLORS
 
 
 def _inline_search(placeholder: str, value, on_change) -> rx.Component:
@@ -82,6 +83,7 @@ def _render_aggregation_row(agg: rx.Var, index: int) -> rx.Component:
                             )
                         ),
                         position="popper",
+                        class_name="max-h-[300px] w-[300px]",
                     ),
                     value=agg["column"],
                     on_change=lambda val: AppState.update_aggregation_row(
@@ -149,6 +151,7 @@ def _render_aggregation_row(agg: rx.Var, index: int) -> rx.Component:
                             )
                         ),
                         position="popper",
+                        class_name="max-h-[300px]",
                     ),
                     value=agg["function"],
                     on_change=lambda val: AppState.update_aggregation_row(
@@ -222,7 +225,7 @@ def aggregation_modal() -> rx.Component:
                         on_click=AppState.toggle_aggregation_modal,
                         class_name="group p-2 flex items-center justify-center rounded-lg hover:bg-white/10 transition-colors focus:outline-none focus:ring-2 focus:ring-white/50 bg-transparent border-none cursor-pointer",
                     ),
-                    class_name="flex items-center justify-between px-6 py-5 border-b border-[#0f172a] bg-[#0f172a] text-white shrink-0",
+                    class_name=f"flex items-center justify-between px-6 py-5 border-b border-[{COLORS['datagrid_bg_dark']}] bg-[{COLORS['datagrid_bg_dark']}] text-white shrink-0",
                 ),
                 # Body
                 rx.box(
@@ -282,6 +285,7 @@ def aggregation_modal() -> rx.Component:
                                             )
                                         ),
                                         position="popper",
+                                        class_name="max-h-[300px] w-full min-w-[300px]",
                                     ),
                                     on_change=AppState.add_group_by_column,
                                 ),
@@ -339,6 +343,7 @@ def aggregation_modal() -> rx.Component:
                         class_name="space-y-3",
                     ),
                     class_name="flex-1 overflow-y-auto overflow-x-hidden bg-slate-50 p-4 space-y-4 custom-scrollbar",
+                    style={"overflow": "visible"},
                 ),
                 # Footer
                 rx.box(
@@ -368,6 +373,13 @@ def aggregation_modal() -> rx.Component:
                                 class_name="text-xs text-slate-600",
                             ),
                             class_name="flex items-center gap-2",
+                        ),
+                        rx.cond(
+                            AppState.error_message != "",
+                            rx.text(
+                                AppState.error_message,
+                                class_name="text-xs text-red-500 font-medium px-4",
+                            ),
                         ),
                         rx.box(
                             rx.box(
@@ -407,7 +419,7 @@ def aggregation_modal() -> rx.Component:
                     ),
                     class_name="flex flex-col border-t border-slate-200 bg-white shrink-0",
                 ),
-                class_name="relative z-50 w-[800px] max-w-[90vw] max-h-[90vh] flex flex-col bg-white rounded-xl shadow-2xl border border-slate-200 overflow-hidden",
+                class_name="relative z-50 w-[1000px] max-w-[95vw] max-h-[90vh] flex flex-col bg-white rounded-xl shadow-2xl border border-slate-200 overflow-hidden",
             ),
             class_name="fixed inset-0 flex items-center justify-center p-4 z-50",
         ),
